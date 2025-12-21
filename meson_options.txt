@@ -1,41 +1,62 @@
-option('onnxruntime_dir', 
-    type : 'string', 
-    value : '/usr/local',
-    description : 'Root prefix of ONNX Runtime (has include/ and lib/). Example: /usr/local or $(brew --prefix onnxruntime)'
+option(
+    'onnxruntime_inc',
+    type        : 'string',
+    value       : '',  # /usr/local/include/onnxruntime  ->  system
+    description : 'Manual path to ONNX Runtime include dir (root that contains "core/..." directory). Used only when CMake package is not found',
 )
 
-option('cpu_opt', 
-    type : 'string',
-    value : 'native',
-    description : 'CPU tuning: native | generic | e.g. x86-64-v3, x86-64-v2, armv8.2-a+simd+dotprod'
+option(
+    'onnxruntime_lib',
+    type        : 'string',
+    value       : '',  # /usr/local/lib  ->  system
+    description : 'Manual path to directory containing ONNX Runtime libraries. Used only when CMake package is not found',
 )
 
-option('fast_math', 
-    type : 'boolean', 
-    value : true,
-    description : 'Enable fast-math flags (faster, relaxed IEEE)'
+option(
+    'cpu_opt',
+    type        : 'string',
+    value       : 'native',
+    description : 'CPU tuning: generic | native | e.g. x86-64-v3, x86-64-v2, armv8.2-a+simd+dotprod',
 )
 
-option('thinlto', 
-    type : 'boolean', 
-    value : true,
-    description : 'Use ThinLTO with Clang in addition to b_lto=true'
+option(
+    'fast_math',
+    type        : 'boolean',
+    value       : true,
+    description : 'Enable fast-math flags (relaxed IEEE; usually safe for inference)',
 )
 
-option('use_openmp', 
-    type : 'boolean', 
-    value : true,
-    description : 'Enable OpenMP for tile-level parallelism'
+option(
+    'thinlto',
+    type        : 'boolean',
+    value       : true,
+    description : 'Hint Clang to use ThinLTO when LTO (b_lto) is enabled',
 )
 
-option('install_rpath_extra', 
-    type : 'string', 
-    value : '',
-    description : 'Extra install rpath entries (colon-separated), appended to platform defaults'
+option(
+    'use_openmp',
+    type        : 'boolean',
+    value       : true,
+    description : 'Enable OpenMP for tile-level parallelism',
 )
 
-option('strict_warnings', 
-    type : 'boolean', 
-    value : false,
-    description : 'Turn on extra warnings (-Wall -Wextra -Wpedantic)'
+option(
+    'use_numa',
+    type        : 'boolean',
+    value       : true,
+    description : 'Enable NUMA for multi-socket systems and fine-tuning binning',
+)
+
+option(
+    'install_rpath_extra',
+    type        : 'string',
+    value       : '',
+    description : 'Extra install RPATH entries (colon-separated), appended to platform defaults',
+)
+
+option(
+    'strict_warnings',
+    type        : 'boolean',
+    value       : false,
+    description : 'Turn on extra warnings (-Wall -Wextra -Wpedantic -Wconversion -Wshadow)',
 )
