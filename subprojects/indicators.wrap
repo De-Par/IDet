@@ -1,0 +1,11 @@
+[wrap-git]
+directory=indicators
+url=https://github.com/p-ranav/indicators.git
+patch_directory=indicators
+depth=1
+
+# v2.3
+revision=26d39ad8fb438f5f50fb16427f554045d8431030 
+
+[provide]
+indicators=indicators_dep

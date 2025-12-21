@@ -1,0 +1,11 @@
+[wrap-git]
+directory=clipper2
+url=https://github.com/AngusJohnson/Clipper2.git
+patch_directory=clipper2
+depth=1
+
+# v1.5.4
+revision=ef88ee97c0e759792e43a2b2d8072def6c9244e8
+
+[provide]
+clipper2=clipper2_dep

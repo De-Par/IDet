@@ -1,0 +1,12 @@
+[wrap-git]
+directory=onnxruntime
+url=https://github.com/microsoft/onnxruntime.git
+patch_directory=onnxruntime
+clone-recursive=true
+depth=1
+
+# v1.23.2
+revision=a83fc4d58cb48eb68890dd689f94f28288cf2278  
+
+[provide]
+onnxruntime=onnxruntime_dep
