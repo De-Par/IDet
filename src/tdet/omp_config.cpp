@@ -64,21 +64,22 @@ void configure_openmp_affinity(const std::string& omp_places_cli, const std::str
         set_env_if_empty("OMP_PROC_BIND", "close");
     }
 
-    // Force setup of OMP
+    // Force setup of OpenMP
 #if defined(_OPENMP)
     // 1. disable dynamic commands
     omp_set_dynamic(0);
 
     // 2. disable neseted parallelism
-    omp_set_nested(0);
 #if _OPENMP >= 200805 // OpenMP 3.0+
     omp_set_max_active_levels(1);
+#else
+    omp_set_nested(0);
 #endif
 
     // 3. set number of threads
     omp_set_num_threads(threads);
 
-// 4. set schedule type
+    // 4. set schedule type
 #if _OPENMP >= 200805 // OpenMP 3.0+
     omp_sched_t cur_kind;
     int cur_chunk;
