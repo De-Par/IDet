@@ -1,0 +1,106 @@
+root = true
+
+##############################
+# Global defaults
+##############################
+[*]
+charset = utf-8                 # All files are UTF-8
+end_of_line = lf                # Unix line endings
+indent_style = space            # Use spaces by default
+indent_size = 4                 # 4-space indentation
+tab_width = 4                   # Tab visually equals 4 spaces
+insert_final_newline = true     # Ensure newline at EOF
+trim_trailing_whitespace = true # Strip trailing spaces on save
+
+
+##############################
+# C / C++ sources & headers
+##############################
+[*.{c,cc,cpp,cxx,h,hh,hpp,hxx,inl,y,yy,cl,glsl}]
+indent_style = space
+indent_size = 4
+tab_width = 4
+
+
+##############################
+# Python
+##############################
+[*.py]
+indent_style = space
+indent_size = 4                
+
+
+##############################
+# Shell scripts (bash/zsh/sh)
+##############################
+[*.{sh,bash,zsh}]
+indent_style = space
+indent_size = 4
+
+
+##############################
+# CMake
+##############################
+[CMakeLists.txt]
+indent_style = space
+indent_size = 2                 # Common CMake convention
+
+[*.cmake]
+indent_style = space
+indent_size = 2
+
+
+##############################
+# Meson
+##############################
+[meson.build]
+indent_style = space
+indent_size = 4
+
+[meson_options.txt]
+indent_style = space
+indent_size = 4
+
+
+##############################
+# JSON / YAML / TOML / INI
+##############################
+[*.json]
+indent_style = space
+indent_size = 2                 
+
+[*.{yml,yaml}]
+indent_style = space
+indent_size = 2                
+
+[*.{toml,ini,conf}]
+indent_style = space
+indent_size = 2
+
+
+##############################
+# Markdown / docs
+##############################
+[*.md]
+trim_trailing_whitespace = false # Trailing spaces can be meaningful in Markdown
+indent_style = space
+indent_size = 2
+
+
+##############################
+# Makefile (tabs are required)
+##############################
+[Makefile]
+indent_style = tab              # Makefile syntax requires tabs for rules
+
+
+##############################
+# Scripts / configs / misc
+##############################
+[*.{txt,log}]
+indent_style = space
+indent_size = 4
+
+[.gitignore]
+indent_style = space
+indent_size = 4
