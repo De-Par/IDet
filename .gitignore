@@ -72,7 +72,5 @@ compile_commands.json
 !figures/*
 !images/*
 
-# CCA-tool temp files
-data
+# Log files
 *.log
-*.html

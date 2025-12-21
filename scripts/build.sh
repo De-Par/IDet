@@ -4,6 +4,8 @@
 #   ./script.sh                # rebuild existing project
 #   ./script.sh [ force | f ]  # force mode -> clean build
 
+set -euo pipefail
+
 clean_artefacts() {
     rm -rf ./build
     rm -rf ./subprojects/clipper2
@@ -11,15 +13,13 @@ clean_artefacts() {
     rm -rf ./subprojects/onnxruntime
 }
 
-set -euo pipefail
-
-mode="${1:-}"
+MODE="${1:-}"
 
 SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
 PARENT_DIR="$(dirname "$SCRIPT_DIR")"
 cd $PARENT_DIR
 
-if [[ "$mode" == "force" || "$mode" == "f" ]]; then
+if [[ "$MODE" == "force" || "$MODE" == "f" ]]; then
     echo "[INFO] Running clean build..."
     clean_artefacts
     meson setup build

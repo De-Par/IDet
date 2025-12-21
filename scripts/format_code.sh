@@ -1,7 +1,5 @@
 #!/bin/bash
 
-# Run clang-format for all files with specidied extensions from FILE_EXTENSIONS in SEARCH_DIRS
-
 set -euo pipefail
 
 # Navigate to root dir of project
@@ -49,10 +47,11 @@ else
 fi
 
 echo "[INFO] Find clang-format: $CLANG_FORMAT_BIN"
+echo "----------------------------"
 if ! "$CLANG_FORMAT_BIN" --version; then
     echo "⚠️ Enable to get clang-format version" >&2
 fi
-echo "----------------------------------------------"
+echo "----------------------------"
 
 # Where search files (dirs)
 SEARCH_DIRS=("src" "include")
