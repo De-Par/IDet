@@ -2,5 +2,4 @@
 
 #include "tdet.h"
 
-
-bool run_bench(const tdet::Options &opt);
+bool run_bench(const tdet::Options& opt);

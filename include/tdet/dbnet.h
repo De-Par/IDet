@@ -14,9 +14,8 @@
 #include <opencv4/opencv2/opencv.hpp>
 #endif
 
-class DBNet
-{
-public:
+class DBNet {
+  public:
     float bin_thresh = 0.3f;
     float box_thresh = 0.3f;
     int limit_side_len = 960; // px
@@ -36,8 +35,7 @@ public:
     std::string in_name;
     std::string out_name;
 
-    struct BindingCtx
-    {
+    struct BindingCtx {
         Ort::IoBinding io;
         Ort::MemoryInfo mem = Ort::MemoryInfo::CreateCpu(OrtDeviceAllocator, OrtMemTypeDefault);
 
@@ -55,25 +53,25 @@ public:
         Ort::Value in_tensor{nullptr};
         Ort::Value out_tensor{nullptr};
 
-        explicit BindingCtx(Ort::Session &s) : io(s) {}
+        explicit BindingCtx(Ort::Session& s) : io(s) {}
     };
 
     std::vector<std::unique_ptr<BindingCtx>> pool;
 
-    DBNet(const std::string &model_path, const int intra_threads = 0, const int inter_threads = 1, bool verbose = true);
+    DBNet(const std::string& model_path, const int intra_threads = 0, const int inter_threads = 1, bool verbose = true);
 
-    std::vector<Detection> infer_unbound(const cv::Mat &img_bgr, double *ms_out = nullptr);
+    std::vector<Detection> infer_unbound(const cv::Mat& img_bgr, double* ms_out = nullptr);
 
-    std::vector<Detection> infer_bound(const cv::Mat &img_bgr, int ctx_idx, double *ms_out = nullptr);
+    std::vector<Detection> infer_bound(const cv::Mat& img_bgr, int ctx_idx, double* ms_out = nullptr);
 
     void ensure_pool_size(int n);
 
-    std::vector<Detection> postprocess(const cv::Mat &prob_map, const cv::Size &orig_size) const;
+    std::vector<Detection> postprocess(const cv::Mat& prob_map, const cv::Size& orig_size) const;
 
-private:
-    void preprocess_dynamic(const cv::Mat &img_bgr, cv::Mat &resized, cv::Mat &blob) const;
+  private:
+    void preprocess_dynamic(const cv::Mat& img_bgr, cv::Mat& resized, cv::Mat& blob) const;
 
-    void preprocess_fixed_into(float *dst_chw, const cv::Mat &img_bgr, const int W, const int H) const;
+    void preprocess_fixed_into(float* dst_chw, const cv::Mat& img_bgr, const int W, const int H) const;
 
-    void prepare_binding(BindingCtx &ctx, const int W, const int H);
+    void prepare_binding(BindingCtx& ctx, const int W, const int H);
 };
