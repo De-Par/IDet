@@ -570,14 +570,16 @@ bool bind_for_threads(const Topology& topo, unsigned desired_threads, bool verbo
     }
 #else
     (void)soft_memory_bind;
-#endif
+#endif // HAS_LIBNUMA
 #else
     (void)topo;
     (void)desired_threads;
     (void)soft_memory_bind;
     if (err) *err = "bind_for_threads is currently implemented only on Linux";
 #endif
-    // Log results of binding
+
+#if defined(__linux__)
+    // Log results of binding, implemented only on Linux
     if (verbose) {
         std::set<int> chosen_set(chosen_cpus.begin(), chosen_cpus.end());
         std::cout << "\n[bind_for_threads] threads=" << desired_threads << "\n";
@@ -595,6 +597,7 @@ bool bind_for_threads(const Topology& topo, unsigned desired_threads, bool verbo
         }
         std::cout << std::flush;
     }
+#endif
 
     // Done: caller can now create N threads/OpenMP region
     return true;

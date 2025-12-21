@@ -2,23 +2,28 @@
 
 set -euo pipefail
 
-mode="${1:-}"
+path_exists() {
+    if ! ls $1 1> /dev/null 2>&1; then
+        echo "[ERROR] Path '$1' does not exist. Stop"
+        exit 1    
+    fi
+}
 
 SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
 PARENT_DIR="$(dirname "$SCRIPT_DIR")"
 cd $PARENT_DIR
 
+MODE="${1:-}"
 APP=./build/src/app/text_det
-
-if ! ls $APP 1> /dev/null 2>&1; then
-    echo "Executable do not exists. Stop"
-    exit 1    
-fi
-
 MODEL=./models/paddleocr/ch_ppocr_v2_det.onnx
-IMG=./images/paper.png
+IMG=./images/test.jpg
 
-if [ "$mode" == "tile" ]; then
+# Check path correctness
+path_exists $APP
+path_exists $MODEL
+path_exists $IMG
+
+if [ "$MODE" == "tile" ]; then
     $APP \
         --model $MODEL \
         --image $IMG \
