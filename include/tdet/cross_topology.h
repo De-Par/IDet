@@ -2,8 +2,7 @@
 #include <string>
 #include <vector>
 
-struct SocketInfo
-{
+struct SocketInfo {
     // Socket/package id
     int socket_id = -1;
 
@@ -20,8 +19,7 @@ struct SocketInfo
     std::vector<int> available_cpu_ids;
 };
 
-struct Topology
-{
+struct Topology {
     // Total logical cores (OS-visible)
     unsigned total_logical = 0;
 
@@ -43,7 +41,7 @@ struct Topology
 
 Topology detect_topology(void);
 
-void print_topology(const Topology &topo);
+void print_topology(const Topology& topo);
 
-bool bind_for_threads(const Topology &topo, unsigned desired_threads, bool soft_memory_bind, bool verbose = true,
-                      std::string *err = nullptr);
+bool bind_for_threads(const Topology& topo, unsigned desired_threads, bool soft_memory_bind, bool verbose = true,
+                      std::string* err = nullptr);

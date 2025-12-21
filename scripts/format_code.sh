@@ -70,9 +70,10 @@ for ext in "${FILE_EXTENSIONS[@]}"; do
 done
 
 # Search files, carefully processing spaces in the names (print0 + mapfile)
-mapfile -d '' -t FILES < <(
-    find "${SEARCH_DIRS[@]}" -type f \( "${find_expr[@]}" \) -print0
-)
+FILES=()
+while IFS= read -r -d '' f; do
+    FILES+=("$f")
+done < <(find "${SEARCH_DIRS[@]}" -type f \( "${find_expr[@]}" \) -print0)
 
 if ((${#FILES[@]} == 0)); then
     echo "[INFO] No files to format. Exit"

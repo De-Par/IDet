@@ -2,5 +2,4 @@
 
 #include "tdet.h"
 
-
-bool run_single(const tdet::Options &opt);
+bool run_single(const tdet::Options& opt);
