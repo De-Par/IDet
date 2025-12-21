@@ -1,6 +1,7 @@
 # IDE configs
 .vscode
 .idea
+.venv
 .DS_Store
 
 # Build dirs
@@ -43,6 +44,7 @@ builddir
 # Meson subproject directories
 /subprojects/*
 !/subprojects/*.wrap
+!/subprojects/packagefiles
 
 # Meson Directories
 meson-logs
@@ -67,3 +69,10 @@ compile_commands.json
 # Output images
 *.png
 *.jpg
+!figures/*
+!images/*
+
+# CCA-tool temp files
+data
+*.log
+*.html
