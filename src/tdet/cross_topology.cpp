@@ -42,7 +42,7 @@ namespace fs = std::filesystem;
 #endif
 
 // Parse strings like "0-3,5,7-8" into sorted unique vector
-static std::vector<int> parse_cpu_list_string(const std::string& s) {
+[[maybe_unused]] static std::vector<int> parse_cpu_list_string(const std::string& s) {
     std::vector<int> cpus;
     std::stringstream ss(s);
     std::string item;
@@ -535,7 +535,7 @@ bool bind_for_threads(const Topology& topo, unsigned desired_threads, bool verbo
         }
 
         if (chosen_cpus.size() != desired_threads) {
-            if (err) *err = "internal error: could not gather requested CPUs; check topology/cpuset";
+            if (err) *err = "could not gather requested CPUs; check topology/cpuset";
             return false;
         }
     }
@@ -571,15 +571,7 @@ bool bind_for_threads(const Topology& topo, unsigned desired_threads, bool verbo
 #else
     (void)soft_memory_bind;
 #endif // HAS_LIBNUMA
-#else
-    (void)topo;
-    (void)desired_threads;
-    (void)soft_memory_bind;
-    if (err) *err = "bind_for_threads is currently implemented only on Linux";
-#endif
 
-#if defined(__linux__)
-    // Log results of binding, implemented only on Linux
     if (verbose) {
         std::set<int> chosen_set(chosen_cpus.begin(), chosen_cpus.end());
         std::cout << "\n[bind_for_threads] threads=" << desired_threads << "\n";
@@ -597,6 +589,12 @@ bool bind_for_threads(const Topology& topo, unsigned desired_threads, bool verbo
         }
         std::cout << std::flush;
     }
+#else
+    (void)topo;
+    (void)desired_threads;
+    (void)verbose;
+    (void)soft_memory_bind;
+    if (err) *err = "threads binding is currently implemented only on Linux";
 #endif
 
     // Done: caller can now create N threads/OpenMP region

@@ -33,10 +33,10 @@ if [ "$MODE" == "tile" ]; then
         --nms_iou 0.5 \
         --bind_io 1 \
         --verbose 0 --is_draw 1 \
-        --fixed_wh 160x128 \
-        --threads_intra 1 --threads_inter 1 --tile_omp 24 \
+        --fixed_wh 320x180 \
+        --threads_intra 1 --threads_inter 1 --tile_omp 9 \
         --bench 100 --warmup 20 \
-        --tiles 6x4 --tile_overlap 0.1
+        --tiles 3x3 --tile_overlap 0.1
 else
     $APP \
         --model $MODEL \
