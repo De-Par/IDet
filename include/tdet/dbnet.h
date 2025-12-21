@@ -1,28 +1,27 @@
 #pragma once
+#include "geometry.h"
+#include "timer.h"
 
+#include <memory>
 #include <string>
 #include <vector>
-#include <memory>
 
 #if defined(__APPLE__)
-    #include <onnxruntime_cxx_api.h>
-    #include <opencv2/opencv.hpp>
+#include <onnxruntime_cxx_api.h>
+#include <opencv2/opencv.hpp>
 #else
-    #include <onnxruntime/core/session/onnxruntime_cxx_api.h>
-    #include <opencv4/opencv2/opencv.hpp>
+#include <onnxruntime/core/session/onnxruntime_cxx_api.h>
+#include <opencv4/opencv2/opencv.hpp>
 #endif
 
-#include "timer.h"
-#include "geometry.h"
-
-
-class DBNet {
+class DBNet
+{
 public:
     float bin_thresh = 0.3f;
-    float box_thresh = 0.6f;
-    int limit_side_len = 960;
-    float unclip_ratio = 1.5f;
-    int min_text_size = 3;
+    float box_thresh = 0.3f;
+    int limit_side_len = 960; // px
+    float unclip_ratio = 1.0f;
+    int min_text_size = 3; // px
     bool apply_sigmoid = false;
 
     int fixed_W = 0;
@@ -37,9 +36,10 @@ public:
     std::string in_name;
     std::string out_name;
 
-    struct BindingCtx {
+    struct BindingCtx
+    {
         Ort::IoBinding io;
-        Ort::MemoryInfo mem = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
+        Ort::MemoryInfo mem = Ort::MemoryInfo::CreateCpu(OrtDeviceAllocator, OrtMemTypeDefault);
 
         std::vector<float> in_buf;
         std::vector<float> out_buf;
@@ -52,12 +52,15 @@ public:
         int curOH = 0;
         bool bound = false;
 
+        Ort::Value in_tensor{nullptr};
+        Ort::Value out_tensor{nullptr};
+
         explicit BindingCtx(Ort::Session &s) : io(s) {}
     };
 
     std::vector<std::unique_ptr<BindingCtx>> pool;
 
-    DBNet(const std::string &model_path, int intra_threads = 0, int inter_threads = 1);
+    DBNet(const std::string &model_path, const int intra_threads = 0, const int inter_threads = 1, bool verbose = true);
 
     std::vector<Detection> infer_unbound(const cv::Mat &img_bgr, double *ms_out = nullptr);
 
@@ -65,14 +68,12 @@ public:
 
     void ensure_pool_size(int n);
 
-    std::vector<Detection> postprocess(const cv::Mat &prob_map, float scale_h, float scale_w, const cv::Size &orig_size) const;
+    std::vector<Detection> postprocess(const cv::Mat &prob_map, const cv::Size &orig_size) const;
 
 private:
     void preprocess_dynamic(const cv::Mat &img_bgr, cv::Mat &resized, cv::Mat &blob) const;
 
-    void preprocess_fixed_into(float *dst_chw, const cv::Mat &img_bgr, int W, int H) const;
+    void preprocess_fixed_into(float *dst_chw, const cv::Mat &img_bgr, const int W, const int H) const;
 
-    std::pair<int, int> probe_out_shape_for(int W, int H);
-
-    void prepare_binding(BindingCtx &ctx, int W, int H);
+    void prepare_binding(BindingCtx &ctx, const int W, const int H);
 };
