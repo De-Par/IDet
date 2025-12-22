@@ -4,16 +4,11 @@
 #include "drawing.h"
 #include "geometry.h"
 #include "nms.h"
+#include "opencv_headers.h"
 #include "tiling.h"
 #include "timer.h"
 
 #include <iostream>
-
-#if defined(__APPLE__)
-#include <opencv2/opencv.hpp>
-#else
-#include <opencv4/opencv2/opencv.hpp>
-#endif
 
 #if defined(_OPENMP)
 #include <omp.h>

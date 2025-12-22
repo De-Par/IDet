@@ -1,4 +1,11 @@
 option(
+    'onnxruntime_system',
+    type        : 'boolean',
+    value       : false,
+    description : 'Use system-installed ONNX Runtime instead of building the bundled subproject',
+)
+
+option(
     'onnxruntime_inc',
     type        : 'string',
     value       : '',  # /usr/local/include/onnxruntime  ->  system

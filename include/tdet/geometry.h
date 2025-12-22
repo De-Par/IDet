@@ -1,12 +1,8 @@
 #pragma once
+#include "opencv_headers.h"
+
 #include <array>
 #include <vector>
-
-#if defined(__APPLE__)
-#include <opencv2/opencv.hpp>
-#else
-#include <opencv4/opencv2/opencv.hpp>
-#endif
 
 #define USE_FAST_IOU 0
 

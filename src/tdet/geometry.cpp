@@ -1,14 +1,10 @@
 #include "geometry.h"
 
+#include "opencv_headers.h"
+
 #include <algorithm>
 #include <cmath>
 #include <numeric>
-
-#if defined(__APPLE__)
-#include <opencv2/imgproc.hpp>
-#else
-#include <opencv4/opencv2/imgproc.hpp>
-#endif
 
 // Robust quad ordering: [top-left, top-right, bottom-right, bottom-left]
 void order_quad(cv::Point2f pts[4]) {
@@ -84,7 +80,7 @@ void order_quad(cv::Point2f pts[4]) {
         pts[i] = r[i];
 }
 
-static inline float poly_area_vec(const std::vector<cv::Point2f>& p) {
+[[maybe_unused]] static inline float poly_area_vec(const std::vector<cv::Point2f>& p) {
     if (p.size() < 3) return 0.f;
     double a = 0.0;
     for (size_t i = 0, j = p.size() - 1; i < p.size(); j = i++)

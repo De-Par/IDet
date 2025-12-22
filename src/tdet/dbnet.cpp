@@ -1,27 +1,14 @@
 #include "dbnet.h"
 
 #include "nms.h"
+#include "opencv_headers.h"
+#include "ort_headers.h"
 
 #include <algorithm>
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
 #include <vector>
-
-#if defined(__APPLE__)
-#include <opencv2/core.hpp>
-#include <opencv2/imgcodecs.hpp>
-#include <opencv2/imgproc.hpp>
-#else
-#include <opencv4/opencv2/core.hpp>
-#include <opencv4/opencv2/imgcodecs.hpp>
-#include <opencv4/opencv2/imgproc.hpp>
-#endif
-
-#define USE_ACL 0
-#if USE_ACL
-#include <onnxruntime/core/providers/acl/acl_provider_factory.h>
-#endif
 
 // 0 => optimized & accurate (contours on low-res prob_map, then scale to orig)
 // 1 => legacy behavior (upsample prob_map to orig, then contours)

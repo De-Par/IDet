@@ -4,6 +4,7 @@
 #include "drawing.h"
 #include "geometry.h"
 #include "nms.h"
+#include "opencv_headers.h"
 #include "progress_bar.h"
 #include "tiling.h"
 #include "timer.h"
@@ -14,12 +15,6 @@
 #include <iostream>
 #include <numeric>
 #include <sstream>
-
-#if defined(__APPLE__)
-#include <opencv2/imgcodecs.hpp>
-#else
-#include <opencv4/opencv2/imgcodecs.hpp>
-#endif
 
 #if defined(_OPENMP)
 #include <omp.h>
@@ -69,13 +64,6 @@ bool run_bench(const tdet::Options& opt) {
         std::cerr << "[ERROR] Cannot read image: " << opt.image_path << "\n";
         return false;
     }
-
-#if 0
-    // Downscale befor processing -> 0.5
-    int new_w = 960;
-    int new_h = 540;
-    cv::resize(img, img, cv::Size(new_w, new_h), 0, 0, cv::INTER_LINEAR);
-#endif
 
     GridSpec g{1, 1};
     bool use_tiles = parse_tiles(opt.tiles_arg, g);

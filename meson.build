@@ -28,14 +28,15 @@ is_gcc    = (cpp.get_id() == 'gcc')
 # Project options (see meson_options.txt)
 # ------------------------------------------------------------------------
 
-ort_inc_dir   = get_option('onnxruntime_inc')
-ort_lib_dir   = get_option('onnxruntime_lib')
-cpu_opt       = get_option('cpu_opt')
+is_system_ort = get_option('onnxruntime_system')
+ort_inc_dir    = get_option('onnxruntime_inc')
+ort_lib_dir    = get_option('onnxruntime_lib')
+cpu_opt        = get_option('cpu_opt')
 fast_math     = get_option('fast_math')
 thinlto       = get_option('thinlto')
 use_openmp    = get_option('use_openmp')
 use_numa      = get_option('use_numa')
-rpath_extra   = get_option('install_rpath_extra')
+rpath_extra    = get_option('install_rpath_extra')
 strict_warn   = get_option('strict_warnings')
 
 # ------------------------------------------------------------------------
@@ -158,19 +159,20 @@ indicators_dep = subproject('indicators').get_variable('indicators_dep')
 clipper2_dep = subproject('clipper2').get_variable('clipper2_dep')
 
 # --- ONNX Runtime (system -> manual -> cmake subproject fallback) ---
-fs = import('fs')
 ort_source = 'none'
 ort_dep = disabler()
 ort_inc = []
 
 # 1) system first (auto + cmake)
-ort_dep = dependency('onnxruntime', required: false, method: 'pkg-config')
-if ort_dep.found()
-    ort_source = 'system (pkg-config)'
-else
-    ort_dep = dependency('onnxruntime', required: false, method: 'cmake')
+if is_system_ort
+    ort_dep = dependency('onnxruntime', required: false, method: 'pkg-config')
     if ort_dep.found()
-        ort_source = 'system (cmake package)'
+        ort_source = 'system (pkg-config)'
+    else
+        ort_dep = dependency('onnxruntime', required: false, method: 'cmake')
+        if ort_dep.found()
+            ort_source = 'system (cmake package)'
+        endif
     endif
 endif
 
@@ -182,6 +184,8 @@ if not ort_dep.found()
         endif
 
         header = join_paths('onnxruntime', 'core', 'session', 'onnxruntime_cxx_api.h')
+        fs = import('fs')
+
         if not fs.exists(join_paths(ort_inc_dir, header))
             error('Manual ONNX Runtime: cannot locate ' + header + ' under onnxruntime_inc=' + ort_inc_dir + '. Specify correct -Donnxruntime_inc=...')
         endif
@@ -200,7 +204,7 @@ if not ort_dep.found()
         ort_source = 'manual -> ' + ort_lib_dir
     else
         # 3) fallback: build ORT from subprojects via CMake module
-        warning('ONNX Runtime not found in system and manual paths are empty. Falling back to building from subprojects/onnxruntime (CMake)')
+        warning('ONNX Runtime not found in system (or disabled) and manual paths are empty. Falling back to building from subprojects/onnxruntime (CMake)')
         
         ort_dep = subproject('onnxruntime').get_variable('onnxruntime_dep')
         ort_source = 'subproject (cmake)'
@@ -223,10 +227,12 @@ rpaths = []
 
 # Typical Homebrew locations for libomp and onnxruntime
 if is_darwin
-    rpaths += [
-        '/opt/homebrew/opt/libomp/lib', 
-        '/opt/homebrew/opt/onnxruntime/lib'
-    ]
+    if openmp_dep.found()
+        rpaths += ['/opt/homebrew/opt/libomp/lib'] 
+    endif
+    # if 
+    #     '/opt/homebrew/opt/onnxruntime/lib'
+    # ]
 endif
 
 # If ONNX Runtime is provided manually, make sure we can find it at runtime

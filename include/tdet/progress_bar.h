@@ -1,5 +1,4 @@
 #pragma once
-
 #include <cstddef>
 #include <indicators/progress_bar.hpp>
 #include <memory>
