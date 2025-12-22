@@ -1,15 +1,9 @@
 #pragma once
+#include "dbnet.h"
+#include "opencv_headers.h"
 
 #include <string>
 #include <vector>
-
-#if defined(__APPLE__)
-#include <opencv2/core.hpp>
-#else
-#include <opencv4/opencv2/core.hpp>
-#endif
-
-#include "dbnet.h"
 
 struct GridSpec {
     int rows{1};

@@ -1,6 +1,7 @@
 #include "tiling.h"
 
 #include "nms.h"
+#include "opencv_headers.h"
 #include "timer.h"
 
 #include <algorithm>
@@ -8,12 +9,6 @@
 #include <sstream>
 #include <string>
 #include <vector>
-
-#if defined(__APPLE__)
-#include <opencv2/opencv.hpp>
-#else
-#include <opencv4/opencv2/opencv.hpp>
-#endif
 
 #if defined(_OPENMP)
 #include <omp.h>

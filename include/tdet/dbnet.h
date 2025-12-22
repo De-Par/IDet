@@ -1,18 +1,12 @@
 #pragma once
 #include "geometry.h"
+#include "opencv_headers.h"
+#include "ort_headers.h"
 #include "timer.h"
 
 #include <memory>
 #include <string>
 #include <vector>
-
-#if defined(__APPLE__)
-#include <onnxruntime_cxx_api.h>
-#include <opencv2/opencv.hpp>
-#else
-#include <onnxruntime/core/session/onnxruntime_cxx_api.h>
-#include <opencv4/opencv2/opencv.hpp>
-#endif
 
 class DBNet {
   public:

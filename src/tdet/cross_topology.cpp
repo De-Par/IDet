@@ -15,7 +15,7 @@
 #include <utility>
 #include <vector>
 
-#if __has_include(<filesystem>)
+#if defined(__has_include) && __has_include(<filesystem>)
 #include <filesystem>
 namespace fs = std::filesystem;
 #else
@@ -26,14 +26,15 @@ namespace fs = std::filesystem;
 #include <cstring>
 #include <sched.h>
 #include <unistd.h>
-
 #elif defined(__APPLE__)
 #include <sys/sysctl.h>
 #include <sys/types.h>
+#else
+#error "[ERROR] Compilation available only for Linux or MacOS"
 #endif
 
 // Optional NUMA (Linux + libnuma + -DUSE_LIBNUMA)
-#if defined(__linux__) && defined(USE_LIBNUMA) && __has_include(<numa.h>)
+#if defined(__linux__) && defined(USE_LIBNUMA) && defined(__has_include) && __has_include(<numa.h>)
 #include <numa.h>
 #include <numaif.h>
 #define HAS_LIBNUMA 1

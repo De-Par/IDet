@@ -1,12 +1,13 @@
 #pragma once
+#include "export.h"
 
-#if defined(__APPLE__)
+#if defined(__has_include) && __has_include(<opencv4/opencv2/opencv.hpp>)
+#include <opencv4/opencv2/opencv.hpp>
+#elif defined(__has_include) && __has_include(<opencv2/opencv.hpp>)
 #include <opencv2/opencv.hpp>
 #else
-#include <opencv4/opencv2/opencv.hpp>
+#error "[ERROR] OpenCV 'opencv.hpp' header not found"
 #endif
-
-#include "export.h"
 
 #include <cstdint>
 #include <functional>
