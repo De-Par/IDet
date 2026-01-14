@@ -1,3 +1,2 @@
-subdir('tdet')
-subdir('yuvv')
+subdir('lib')
 subdir('app')

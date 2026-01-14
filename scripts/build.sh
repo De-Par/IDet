@@ -7,10 +7,18 @@
 set -euo pipefail
 
 clean_artefacts() {
-    rm -rf ./build
-    rm -rf ./subprojects/clipper2
-    rm -rf ./subprojects/indicators
-    rm -rf ./subprojects/onnxruntime
+    echo "[INFO] Running clean build..."
+    ARTEFACTS=(
+        ./build
+        ./subprojects/clipper2
+        ./subprojects/indicators
+        ./subprojects/onnxruntime
+    )
+    for dir in "${ARTEFACTS[@]}"; do
+        rm -rf $dir
+        echo " - Removed ${dir}"
+    done
+    echo ""
 }
 
 MODE="${1:-}"
@@ -20,7 +28,6 @@ PARENT_DIR="$(dirname "$SCRIPT_DIR")"
 cd $PARENT_DIR
 
 if [[ "$MODE" == "force" || "$MODE" == "f" ]]; then
-    echo "[INFO] Running clean build..."
     clean_artefacts
     meson setup build
 else

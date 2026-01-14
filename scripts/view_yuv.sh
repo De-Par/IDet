@@ -13,8 +13,8 @@ SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
 PARENT_DIR="$(dirname "$SCRIPT_DIR")"
 cd $PARENT_DIR
 
-YUV_VIEWER=./build/src/app/yuv_viewer
-YUV_SRC=./videos/test.yuv
+YUV_VIEWER=./build/src/app/yuvv/yuv_viewer
+YUV_SRC=./assets/videos/test.yuv
 
 # Check path correctness
 path_exists $YUV_VIEWER
