@@ -1,7 +1,7 @@
 option(
     'onnxruntime_system',
     type        : 'boolean',
-    value       : false,
+    value       : true,
     description : 'Use system-installed ONNX Runtime instead of building the bundled subproject',
 )
 

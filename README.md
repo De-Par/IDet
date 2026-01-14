@@ -1,14 +1,14 @@
 # Fast CPU-only Text Detector 🚀
 
-[![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://en.cppreference.com/w/cpp/17)
-[![OpenCV 4](https://img.shields.io/badge/OpenCV-4.x-purple.svg)](https://opencv.org/)
+[![C++](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://en.cppreference.com/w/cpp/17)
+[![OpenCV](https://img.shields.io/badge/OpenCV-4.x-purple.svg)](https://opencv.org/)
 [![ONNX Runtime](https://img.shields.io/badge/ONNX%20Runtime-CPU--only-red.svg)](https://onnxruntime.ai/)
 [![OpenMP](https://img.shields.io/badge/OpenMP-enabled-2ca44f.svg)](https://www.openmp.org/)
 [![NUMA](https://img.shields.io/badge/NUMA-enabled-yellow.svg)](https://github.com/numactl/numactl)
-[![Meson + Ninja](https://img.shields.io/badge/Build-Meson%20%2B%20Ninja-ff69b4.svg)](https://mesonbuild.com/)
-[![MacOS / Linux](https://img.shields.io/badge/OS-MacOS%20%7C%20Linux-lightgrey.svg)](#)
+[![Build](https://img.shields.io/badge/Build-Meson-ff69b4.svg)](https://mesonbuild.com/)
+[![OS](https://img.shields.io/badge/OS-MacOS%20%7C%20Linux-lightgrey.svg)](#)
 
-![plot](figures/demo.png)
+![logo](docs/assets/logo.png)
 
 A fast, **CPU-only** text detector powered by ONNX Runtime. It supports **tiled inference**, **polygon NMS**, **IOBinding** (to eliminate per-frame allocations), and a **benchmark mode** with p50/p90/p99 latency reporting. Designed for production: clean code, robust shape handling (NCHW/NHWC/2D/3D) and safe defaults for multi-core servers. Output contains image with quadrilateral boxes + 4 points _(x, y)_ of each box printed to **stdout**.
 
@@ -241,36 +241,34 @@ chmod +x ./scripts/run.sh
 **Basic (no tiling):**
 
 ```bash
-./build/text_det --model ./models/ch_PP-OCRv4_det.onnx --image ./images/test.jpg --threads_intra 4 --side 640 --bin_thresh 0.3 --box_thresh 0.6
+./build/src/app/tdet/text_det --model ./assets/models/paddleocr/ch_ppocr_v4_det.onnx --image ./assets/images/test.png --threads_intra 8 --side 512 --bin_thresh 0.3 --box_thresh 0.6 --is_draw 1
 ```
 
 **Model that outputs logits (no final Sigmoid):**
 
 ```bash
-./build/text_det --model ./models/ch_PP-OCRv4_det.onnx --image ./images/test.jpg --threads_intra 4 --apply_sigmoid 1 --bin_thresh 0.3 --box_thresh 0.3
+./build/src/app/tdet/text_det --model ./assets/models/paddleocr/ch_ppocr_v4_det.onnx --image ./assets/images/test.png --threads_intra 8 --apply_sigmoid 1 --bin_thresh 0.3 --box_thresh 0.6 --is_draw 1
 ```
 
 ## Common Recipes
-
-**Tiling on a big server (e.g., 96 cores)**
-
-```bash
-./build/text_det --model ./models/ch_PP-OCRv4_det.onnx --image ./images/test.jpg --tiles 3x3 --tile_overlap 0.15 --nms_iou 0.3 --threads_intra 2 --tile_omp 8 --omp_places cores --omp_bind close
-```
 
 - Keep **ORT intra-op small** (`--threads_intra 1–2`).
 - Use **lots of OpenMP threads for tiles** (`--tile_omp`).
 
 **IOBinding + fixed size (best reuse, hundreds of images)**
 
+![single_mode](docs/assets/single_mode.png)
+
 ```bash
-./build/text_det --model ./models/ch_PP-OCRv4_det.onnx --image ./images/test.jpg --bind_io 1 --fixed_wh 640x640 --threads_intra 4
+./build/src/app/tdet/text_det --model ./assets/models/paddleocr/ch_ppocr_v4_det.onnx --image ./assets/images/test.png --bind_io 1 --fixed_wh 512x512 --threads_intra 8 --is_draw 1
 ```
 
 **Tiling + IOBinding + fixed size (stable latency under load)**
 
+![tile_mode](docs/assets/tile_mode.png)
+
 ```bash
-./build/text_det --model ./models/ch_PP-OCRv4_det.onnx --image ./images/test.jpg --tiles 3x3 --tile_overlap 0.15 --nms_iou 0.3 --bind_io 1 --fixed_wh 640x640 --threads_intra 2 --tile_omp 8 --omp_places cores --omp_bind close
+./build/src/app/tdet/text_det --model ./assets/models/paddleocr/ch_ppocr_v4_det.onnx --image ./assets/images/test.png --tiles 2x2 --tile_overlap 0.1 --nms_iou 0.3 --bind_io 1 --fixed_wh 256x256 --threads_intra 1 --tile_omp 4 --is_draw 1
 ```
 
 ## Performance Tuning Guide
@@ -292,8 +290,10 @@ chmod +x ./scripts/run.sh
 
 Measure end-to-end latency with warmup and tail-latency percentiles:
 
+![bench_report](docs/assets/bench_report.png)
+
 ```bash
-./build/text_det --model ./models/ch_PP-OCRv4_det.onnx --image ./images/test.jpg --tiles 3x3 --tile_overlap 0.15 --nms_iou 0.3 --bind_io 1 --fixed_wh 640x640 --threads_intra 2 --tile_omp 8 --bench 200 --warmup 50
+./build/src/app/tdet/text_det --model ./assets/models/paddleocr/ch_ppocr_v4_det.onnx --image ./assets/images/test.png --tiles 2x2 --tile_overlap 0.1 --nms_iou 0.3 --bind_io 1 --fixed_wh 256x256 --threads_intra 1 --tile_omp 4 --bench 200 --warmup 50 --is_draw 1
 ```
 
 **Report includes (stderr):**
@@ -364,3 +364,5 @@ This project uses such libraries / frameworks:
 Model families supported include DBNet and PP-OCR det models exported to ONNX.
 
 👾 **Happy detecting!** 👾
+
+[⬆️ Back to top](#table-of-contents)

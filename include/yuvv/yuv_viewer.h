@@ -30,7 +30,7 @@ struct YUVV_API ViewerConfig {
     YuvFormat fmt = YuvFormat::NV12;
 
     double fps = 30.0;
-    bool loop = false;
+    bool loop = true;
 
     int64_t start_frame = 0;
     int64_t max_frames = -1; // -1 => all

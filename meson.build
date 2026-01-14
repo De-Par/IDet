@@ -284,20 +284,6 @@ yuvv_inc = [
     ),
 ]
 
-# --- Text Detector Application ---
-tdet_app_inc = [
-    include_directories(
-        join_paths('include', 'app'), 
-    ),
-]
-
-# --- YUV Viewer Application ---
-yuvv_app_inc = [
-    include_directories(
-        join_paths('include', 'app'), 
-    ),
-]
-
 subdir('src')
 
 # ------------------------------------------------------------------------
