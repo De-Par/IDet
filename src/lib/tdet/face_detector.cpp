@@ -141,7 +141,7 @@ static std::vector<Detection> decode_scrfd_heads(const std::unordered_map<std::s
         bool flat = false; // score/bbox flattened to [1, HW*A, C]
     };
 
-    if (verbose) {
+    if (0) {
         for (const auto& kv : outs) {
             auto shp = kv.second.GetTensorTypeAndShapeInfo().GetShape();
             std::cerr << "[DEBUG] output " << kv.first << " shape=[";
@@ -207,7 +207,7 @@ static std::vector<Detection> decode_scrfd_heads(const std::unordered_map<std::s
     if (auto h = head_from("score_16", "bbox_16", 16)) heads.push_back(*h);
     if (auto h = head_from("score_32", "bbox_32", 32)) heads.push_back(*h);
 
-    if (verbose) {
+    if (0) {
         for (const auto& h : heads) {
             std::cerr << "[DEBUG] head stride=" << h.stride << " score_hw=" << h.h << "x" << h.w
                       << " ch=" << h.score_ch << " anchors=" << h.anchors << " flat=" << h.flat
@@ -284,7 +284,7 @@ static std::vector<Detection> decode_scrfd_heads(const std::unordered_map<std::s
                 }
             }
         }
-        if (verbose) {
+        if (0) {
             std::cerr << "[DEBUG] head stride=" << head.stride << " passed " << passed << " / "
                       << (head.h * head.w * head.anchors) << " (thr=" << score_thr
                       << ") raw_min=" << min_raw << " raw_max=" << max_raw << "\n";
@@ -292,7 +292,7 @@ static std::vector<Detection> decode_scrfd_heads(const std::unordered_map<std::s
     }
 
     std::sort(dets.begin(), dets.end(), [](const Detection& a, const Detection& b) { return a.score > b.score; });
-    if (verbose) {
+    if (0) {
         for (size_t i = 0; i < dets.size() && i < 5; ++i) {
             const auto& d = dets[i];
             std::cerr << "[DEBUG] det" << i << " score=" << d.score << " tl=(" << d.pts[0].x << "," << d.pts[0].y
@@ -335,7 +335,7 @@ std::vector<Detection> FaceDetector::detect(const cv::Mat& img_bgr, double* ms_o
                               cfg_.min_size_w, cfg_.min_size_h, cfg_.output.verbose, H, W);
 }
 
-bool FaceDetector::prepare_binding(int target_w, int target_h) {
+bool FaceDetector::prepare_binding(int target_w, int target_h, int /*contexts*/) {
     bound_w_ = target_w;
     bound_h_ = target_h;
     input_buf_.assign((size_t)3 * target_w * target_h, 0.f);
@@ -391,7 +391,7 @@ bool FaceDetector::prepare_binding(int target_w, int target_h) {
     return true;
 }
 
-std::vector<Detection> FaceDetector::detect_bound(const cv::Mat& img_bgr, double* ms_out) {
+std::vector<Detection> FaceDetector::detect_bound(const cv::Mat& img_bgr, int /*ctx_idx*/, double* ms_out) {
     if (!binding_ || bound_w_ <= 0 || bound_h_ <= 0) {
         return detect(img_bgr, ms_out);
     }

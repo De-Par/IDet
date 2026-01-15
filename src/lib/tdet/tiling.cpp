@@ -1,6 +1,8 @@
 #include "tiling.h"
 
 #include "nms.h"
+#include "dbnet.h"
+#include "detector.h"
 #include "face_detector.h"
 #include "opencv_headers.h"
 #include "timer.h"
@@ -100,8 +102,9 @@ bool parse_tiles(const std::string& s_in, GridSpec& g) {
     return (r * c > 1);
 }
 
-std::vector<Detection> infer_tiled_bound(const cv::Mat& img, DBNet& det, const GridSpec& g, const float overlap,
-                                         double* ms_out, const int tile_omp_threads) {
+std::vector<Detection> infer_tiled_generic(const cv::Mat& img, IDetector& det, const GridSpec& g, const float overlap,
+                                           double* ms_out, const int tile_omp_threads, bool use_bind, int fixed_w,
+                                           int fixed_h) {
     const auto rects = make_tiles(img.size(), g, overlap);
     const int num_tiles = (int)rects.size();
     if (num_tiles == 0) {
@@ -114,140 +117,10 @@ std::vector<Detection> infer_tiled_bound(const cv::Mat& img, DBNet& det, const G
     n_threads = (tile_omp_threads > 0) ? tile_omp_threads : omp_get_max_threads();
 #endif
 
-    std::vector<std::vector<Detection>> tls_dets((size_t)n_threads);
-    for (auto& v : tls_dets)
-        v.reserve((size_t)(num_tiles * 4 / std::max(1, n_threads) + 8));
-
-    Timer t;
-    t.tic();
-
-#if defined(_OPENMP)
-    #pragma omp parallel num_threads(n_threads)
-    {
-        const int tid = omp_get_thread_num();
-        auto& local = tls_dets[(size_t)tid];
-
-    #pragma omp for schedule(static)
-        for (int i = 0; i < num_tiles; ++i) {
-            const cv::Rect& rc = rects[(size_t)i];
-            cv::Mat tile = img(rc); // ROI view, no clone
-
-            auto dets = det.infer_bound(tile, tid, nullptr);
-            for (auto& d : dets)
-                offset_detection(d, rc.x, rc.y);
-
-            local.insert(local.end(), std::make_move_iterator(dets.begin()), std::make_move_iterator(dets.end()));
-        }
-    }
-#else
-    auto& local = tls_dets[0];
-    for (int i = 0; i < num_tiles; ++i) {
-        const cv::Rect& rc = rects[(size_t)i];
-        cv::Mat tile = img(rc);
-
-        auto dets = det.infer_bound(tile, 0, nullptr);
-        for (auto& d : dets)
-            offset_detection(d, rc.x, rc.y);
-
-        local.insert(local.end(), std::make_move_iterator(dets.begin()), std::make_move_iterator(dets.end()));
-    }
-#endif
-
-    std::vector<Detection> all;
-    {
-        size_t total = 0;
-        for (const auto& v : tls_dets)
-            total += v.size();
-        all.reserve(total);
-        for (auto& v : tls_dets)
-            all.insert(all.end(), std::make_move_iterator(v.begin()), std::make_move_iterator(v.end()));
-    }
-
-    if (ms_out) *ms_out = t.toc_ms();
-    return all;
-}
-
-std::vector<Detection> infer_tiled_unbound(const cv::Mat& img, DBNet& det, const GridSpec& g, const float overlap,
-                                           double* ms_out, const int tile_omp_threads) {
-    const auto rects = make_tiles(img.size(), g, overlap);
-    const int n_tiles = (int)rects.size();
-    if (n_tiles == 0) {
-        if (ms_out) *ms_out = 0.0;
-        return {};
-    }
-
-    int n_threads = 1;
-#if defined(_OPENMP)
-    n_threads = (tile_omp_threads > 0) ? tile_omp_threads : omp_get_max_threads();
-#endif
-
-    std::vector<std::vector<Detection>> per_thread((size_t)n_threads);
-
-    Timer t;
-    t.tic();
-
-#if defined(_OPENMP)
-    #pragma omp parallel num_threads(n_threads)
-#endif
-    {
-#if defined(_OPENMP)
-        const int tid = omp_get_thread_num();
-#else
-        const int tid = 0;
-#endif
-        std::vector<Detection> local;
-        local.reserve((size_t)(n_tiles * 4 / std::max(1, n_threads) + 8));
-
-#if defined(_OPENMP)
-    #pragma omp for schedule(static)
-#endif
-        for (int i = 0; i < n_tiles; ++i) {
-            const cv::Rect rc = rects[(size_t)i];
-            cv::Mat tile = img(rc);
-
-            auto dets = det.infer_unbound(tile, nullptr);
-            for (auto& d : dets)
-                offset_detection(d, rc.x, rc.y);
-
-            local.insert(local.end(), std::make_move_iterator(dets.begin()), std::make_move_iterator(dets.end()));
-        }
-
-        per_thread[(size_t)tid] = std::move(local);
-    }
-
-    std::vector<Detection> all;
-    {
-        size_t total = 0;
-        for (const auto& v : per_thread)
-            total += v.size();
-        all.reserve(total);
-        for (auto& v : per_thread)
-            all.insert(all.end(), std::make_move_iterator(v.begin()), std::make_move_iterator(v.end()));
-    }
-
-    if (ms_out) *ms_out = t.toc_ms();
-    return all;
-}
-
-std::vector<Detection> infer_tiled_face(const cv::Mat& img, FaceDetector& det, const GridSpec& g, const float overlap,
-                                        double* ms_out, const int tile_omp_threads, bool bind_io, int fixed_w,
-                                        int fixed_h) {
-    const auto rects = make_tiles(img.size(), g, overlap);
-    const int num_tiles = (int)rects.size();
-    if (num_tiles == 0) {
-        if (ms_out) *ms_out = 0.0;
-        return {};
-    }
-
-    int n_threads = 1;
-#if defined(_OPENMP)
-    n_threads = (tile_omp_threads > 0) ? tile_omp_threads : omp_get_max_threads();
-#endif
-
-    bool can_bind = bind_io && fixed_w > 0 && fixed_h > 0;
+    bool can_bind = use_bind && det.supports_binding() && fixed_w > 0 && fixed_h > 0;
     if (can_bind) {
-        n_threads = 1; // binding buffers not thread-safe
-        det.prepare_binding(fixed_w, fixed_h);
+        det.prepare_binding(fixed_w, fixed_h, n_threads);
+        n_threads = std::max(1, std::min(n_threads, det.binding_thread_limit()));
     }
 
     std::vector<std::vector<Detection>> tls_dets((size_t)n_threads);
@@ -268,7 +141,7 @@ std::vector<Detection> infer_tiled_face(const cv::Mat& img, FaceDetector& det, c
             const cv::Rect& rc = rects[(size_t)i];
             cv::Mat tile = img(rc); // ROI view
 
-            auto dets = can_bind ? det.detect_bound(tile, nullptr) : det.detect(tile, nullptr);
+            auto dets = can_bind ? det.detect_bound(tile, tid, nullptr) : det.detect(tile, nullptr);
             for (auto& d : dets)
                 offset_detection(d, rc.x, rc.y);
 
@@ -276,16 +149,19 @@ std::vector<Detection> infer_tiled_face(const cv::Mat& img, FaceDetector& det, c
         }
     }
 #else
-    auto& local = tls_dets[0];
-    for (int i = 0; i < num_tiles; ++i) {
-        const cv::Rect& rc = rects[(size_t)i];
-        cv::Mat tile = img(rc);
+    {
+        const int tid = 0;
+        auto& local = tls_dets[0];
+        for (int i = 0; i < num_tiles; ++i) {
+            const cv::Rect& rc = rects[(size_t)i];
+            cv::Mat tile = img(rc);
 
-        auto dets = det.detect(tile, nullptr);
-        for (auto& d : dets)
-            offset_detection(d, rc.x, rc.y);
+            auto dets = can_bind ? det.detect_bound(tile, tid, nullptr) : det.detect(tile, nullptr);
+            for (auto& d : dets)
+                offset_detection(d, rc.x, rc.y);
 
-        local.insert(local.end(), std::make_move_iterator(dets.begin()), std::make_move_iterator(dets.end()));
+            local.insert(local.end(), std::make_move_iterator(dets.begin()), std::make_move_iterator(dets.end()));
+        }
     }
 #endif
 
@@ -299,4 +175,20 @@ std::vector<Detection> infer_tiled_face(const cv::Mat& img, FaceDetector& det, c
 
     if (ms_out) *ms_out = t.toc_ms();
     return all;
+}
+
+std::vector<Detection> infer_tiled_bound(const cv::Mat& img, DBNet& det, const GridSpec& g, const float overlap,
+                                         double* ms_out, const int tile_omp_threads, int fixed_w, int fixed_h) {
+    return infer_tiled_generic(img, det, g, overlap, ms_out, tile_omp_threads, /*use_bind=*/true, fixed_w, fixed_h);
+}
+
+std::vector<Detection> infer_tiled_unbound(const cv::Mat& img, DBNet& det, const GridSpec& g, const float overlap,
+                                           double* ms_out, const int tile_omp_threads) {
+    return infer_tiled_generic(img, det, g, overlap, ms_out, tile_omp_threads, /*use_bind=*/false, 0, 0);
+}
+
+std::vector<Detection> infer_tiled_face(const cv::Mat& img, FaceDetector& det, const GridSpec& g, const float overlap,
+                                        double* ms_out, const int tile_omp_threads, bool bind_io, int fixed_w,
+                                        int fixed_h) {
+    return infer_tiled_generic(img, det, g, overlap, ms_out, tile_omp_threads, bind_io, fixed_w, fixed_h);
 }

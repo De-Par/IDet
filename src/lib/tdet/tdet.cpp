@@ -6,9 +6,9 @@
 #include "face_detector.h"
 #include "nms.h"
 #include "omp_config.h"
-#include "run_bench.h"
-#include "run_face.h"
-#include "run_single.h"
+#include "run/run_bench.h"
+#include "run/run_face.h"
+#include "run/run_single.h"
 #include "tiling.h"
 
 #include <iostream>
