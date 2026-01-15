@@ -167,12 +167,16 @@ DBNet::~DBNet() = default;
 
 void DBNet::ensure_pool_size(int n) {
     if (n <= 0) n = 1;
-    if ((int)impl_->pool.size() >= n) return;
+    if ((int)impl_->pool.size() >= n) {
+        pool_size_ = (int)impl_->pool.size();
+        return;
+    }
 
     const int old = (int)impl_->pool.size();
     impl_->pool.resize(n);
     for (int i = old; i < n; ++i)
         impl_->pool[i] = std::make_unique<BindingCtx>(impl_->session);
+    pool_size_ = (int)impl_->pool.size();
 }
 
 void DBNet::preprocess_dynamic(const cv::Mat& img_bgr, cv::Mat& resized, cv::Mat& blob) const {
@@ -242,14 +246,14 @@ void DBNet::preprocess_fixed_into(float* dst_chw, const cv::Mat& img_bgr, const 
     }
 }
 
-void DBNet::prepare_binding(int ctx_idx, const int W, const int H) {
+void DBNet::prepare_ctx_binding(int ctx_idx, const int W, const int H) {
     if (ctx_idx < 0 || ctx_idx >= (int)impl_->pool.size()) {
-        throw std::runtime_error("[ERROR] prepare_binding: ctx_idx out of range");
+        throw std::runtime_error("[ERROR] prepare_ctx_binding: ctx_idx out of range");
     }
 
     auto& ctx = *impl_->pool[ctx_idx];
     if (ctx.bound && ctx.curW == W && ctx.curH == H) return;
-    if (W <= 0 || H <= 0) throw std::runtime_error("[ERROR] prepare_binding: non-positive W/H");
+    if (W <= 0 || H <= 0) throw std::runtime_error("[ERROR] prepare_ctx_binding: non-positive W/H");
 
     ctx.in_shape = {1, 3, H, W};
 
@@ -542,7 +546,7 @@ std::vector<Detection> DBNet::infer_bound(const cv::Mat& img_bgr, int ctx_idx, d
     W = align_down32_safe(std::max(1, W));
     H = align_down32_safe(std::max(1, H));
 
-    prepare_binding(ctx_idx, W, H);
+    prepare_ctx_binding(ctx_idx, W, H);
     preprocess_fixed_into(ctx.in_buf.data(), img_bgr, W, H);
 
     Timer t;
@@ -573,4 +577,21 @@ std::vector<Detection> DBNet::infer_bound(const cv::Mat& img_bgr, int ctx_idx, d
     const float* plane = ctx.out_buf.data(); // channel 0
     cv::Mat prob_map(oh, ow, CV_32F, const_cast<float*>(plane));
     return postprocess(prob_map, ImageSize{img_bgr.cols, img_bgr.rows});
+}
+
+// IDetector wrappers
+std::vector<Detection> DBNet::detect(const cv::Mat& img_bgr, double* ms_out) {
+    return infer_unbound(img_bgr, ms_out);
+}
+
+bool DBNet::prepare_binding(int w, int h, int contexts) {
+    if (w <= 0 || h <= 0) return false;
+    ensure_pool_size(contexts);
+    for (int i = 0; i < pool_size_; ++i)
+        prepare_ctx_binding(i, w, h);
+    return true;
+}
+
+std::vector<Detection> DBNet::detect_bound(const cv::Mat& img_bgr, int ctx_idx, double* ms_out) {
+    return infer_bound(img_bgr, ctx_idx, ms_out);
 }

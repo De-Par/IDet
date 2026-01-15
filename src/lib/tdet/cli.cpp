@@ -74,7 +74,7 @@ void print_usage(const char* app) {
 }
 
 bool parse_arguments(int argc, char** argv, std::unique_ptr<tdet::DetectorConfig>& cfg_out) {
-    std::string mode = "face";
+    std::string mode = "text";
     // First pass for mode
     for (int i = 1; i < argc; ++i) {
         if (std::string(argv[i]) == "--mode" && i + 1 < argc) {

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "tdet.h"
+#include "detector.h"
 #include "geometry.h"
 #include "ort_headers.h"
 
@@ -10,12 +11,16 @@ namespace cv {
 class Mat;
 }
 
-class FaceDetector {
+class FaceDetector : public IDetector {
   public:
     explicit FaceDetector(tdet::FaceDetectorConfig cfg);
 
     // Runs SCRFD ONNX model; returns rectangles as Detection quads.
-    std::vector<Detection> detect(const cv::Mat& img_bgr, double* ms_out = nullptr);
+    std::vector<Detection> detect(const cv::Mat& img_bgr, double* ms_out = nullptr) override;
+    bool supports_binding() const override { return true; }
+    bool prepare_binding(int target_w, int target_h, int contexts) override;
+    int binding_thread_limit() const override { return 1; }
+    std::vector<Detection> detect_bound(const cv::Mat& img_bgr, int ctx_idx, double* ms_out = nullptr) override;
     // Prepare and reuse I/O binding for fixed WxH input (not thread-safe).
     bool prepare_binding(int target_w, int target_h);
     std::vector<Detection> detect_bound(const cv::Mat& img_bgr, double* ms_out = nullptr);
