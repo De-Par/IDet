@@ -16,30 +16,30 @@
 #include <vector>
 
 #if defined(__has_include) && __has_include(<filesystem>)
-#include <filesystem>
+    #include <filesystem>
 namespace fs = std::filesystem;
 #else
-#error "[ERROR] C++17 <filesystem> is required"
+    #error "[ERROR] C++17 <filesystem> is required"
 #endif
 
 #if defined(__linux__)
-#include <cstring>
-#include <sched.h>
-#include <unistd.h>
+    #include <cstring>
+    #include <sched.h>
+    #include <unistd.h>
 #elif defined(__APPLE__)
-#include <sys/sysctl.h>
-#include <sys/types.h>
+    #include <sys/sysctl.h>
+    #include <sys/types.h>
 #else
-#error "[ERROR] Compilation available only for Linux or MacOS"
+    #error "[ERROR] Compilation available only for Linux or MacOS"
 #endif
 
 // Optional NUMA (Linux + libnuma + -DUSE_LIBNUMA)
 #if defined(__linux__) && defined(USE_LIBNUMA) && defined(__has_include) && __has_include(<numa.h>)
-#include <numa.h>
-#include <numaif.h>
-#define HAS_LIBNUMA 1
+    #include <numa.h>
+    #include <numaif.h>
+    #define HAS_LIBNUMA 1
 #else
-#define HAS_LIBNUMA 0
+    #define HAS_LIBNUMA 0
 #endif
 
 // Parse strings like "0-3,5,7-8" into sorted unique vector
@@ -189,7 +189,7 @@ static bool linux_set_affinity_to_cpulist(const std::vector<int>& cpus, std::str
         return false;
     }
 
-#if defined(CPU_ALLOC)
+    #if defined(CPU_ALLOC)
     int max_cpu = max_id + 1;
     size_t setsize = CPU_ALLOC_SIZE(max_cpu);
     cpu_set_t* set = CPU_ALLOC(max_cpu);
@@ -211,7 +211,7 @@ static bool linux_set_affinity_to_cpulist(const std::vector<int>& cpus, std::str
         return false;
     }
     return true;
-#else
+    #else
     if (max_id >= CPU_SETSIZE) {
         if (err) {
             *err = "CPU id " + std::to_string(max_id) + " exceeds CPU_SETSIZE=" + std::to_string(CPU_SETSIZE) +
@@ -232,10 +232,10 @@ static bool linux_set_affinity_to_cpulist(const std::vector<int>& cpus, std::str
         return false;
     }
     return true;
-#endif
+    #endif
 }
 
-#if HAS_LIBNUMA
+    #if HAS_LIBNUMA
 // NUMA node -> cpus mapping from sysfs
 static std::map<int, std::vector<int>> linux_numa_node_to_cpus() {
     std::map<int, std::vector<int>> mapn;
@@ -287,7 +287,7 @@ static std::vector<int> nodes_for_cpus(const std::vector<int>& cpus) {
     nodes.erase(std::unique(nodes.begin(), nodes.end()), nodes.end());
     return nodes;
 }
-#endif // HAS_LIBNUMA
+    #endif // HAS_LIBNUMA
 
 // Detect topology on Linux via sysfs + /proc/self/status
 static Topology detect_linux() {
@@ -546,7 +546,7 @@ bool bind_for_threads(const Topology& topo, unsigned desired_threads, bool verbo
         return false;
     }
 
-#if HAS_LIBNUMA
+    #if HAS_LIBNUMA
     if (numa_available() >= 0) {
         auto nodes = nodes_for_cpus(chosen_cpus);
         if (!nodes.empty()) {
@@ -569,9 +569,9 @@ bool bind_for_threads(const Topology& topo, unsigned desired_threads, bool verbo
             numa_set_localalloc();
         }
     }
-#else
+    #else
     (void)soft_memory_bind;
-#endif // HAS_LIBNUMA
+    #endif // HAS_LIBNUMA
 
     if (verbose) {
         std::set<int> chosen_set(chosen_cpus.begin(), chosen_cpus.end());

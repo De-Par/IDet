@@ -1,5 +1,5 @@
 yuvv_source = files(
-    'yuv_viewer.cpp',
+    'yuvv.cpp',
 )
 
 build_defines = []

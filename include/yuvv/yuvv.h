@@ -1,12 +1,25 @@
 #pragma once
-#include "export.h"
+
+#if defined(_WIN32) || defined(__CYGWIN__)
+    #if defined(YUVV_BUILD_SHARED)
+        #define YUVV_API __declspec(dllexport)
+    #else
+        #define YUVV_API
+    #endif
+#else // Linux / macOS / etc.
+    #if defined(YUVV_BUILD_SHARED) && __GNUC__ >= 4
+        #define YUVV_API __attribute__((visibility("default")))
+    #else
+        #define YUVV_API
+    #endif
+#endif
 
 #if defined(__has_include) && __has_include(<opencv4/opencv2/opencv.hpp>)
-#include <opencv4/opencv2/opencv.hpp>
+    #include <opencv4/opencv2/opencv.hpp>
 #elif defined(__has_include) && __has_include(<opencv2/opencv.hpp>)
-#include <opencv2/opencv.hpp>
+    #include <opencv2/opencv.hpp>
 #else
-#error "[ERROR] OpenCV 'opencv.hpp' header not found"
+    #error "[ERROR] OpenCV 'opencv.hpp' header not found"
 #endif
 
 #include <cstdint>

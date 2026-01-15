@@ -27,6 +27,9 @@ SpaceBeforeParens: ControlStatements    # Space for if/for/while: if (x)
 SpacesInParentheses: false
 SpaceAfterCStyleCast: false
 
+# Indenting preprocessor directives
+IndentPPDirectives: BeforeHash
+
 # If you want a multi-section config:
 # # For C++
 # ---
