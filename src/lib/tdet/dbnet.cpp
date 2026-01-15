@@ -3,16 +3,59 @@
 #include "nms.h"
 #include "opencv_headers.h"
 #include "ort_headers.h"
+#include "timer.h"
 
 #include <algorithm>
 #include <cmath>
 #include <iostream>
+#include <memory>
 #include <stdexcept>
 #include <vector>
 
 // 0 => optimized & accurate (contours on low-res prob_map, then scale to orig)
 // 1 => legacy behavior (upsample prob_map to orig, then contours)
 #define DBNET_POSTPROCESS_UPSAMPLE 0
+
+namespace {
+
+struct BindingCtx {
+    Ort::IoBinding io;
+    Ort::MemoryInfo mem = Ort::MemoryInfo::CreateCpu(OrtDeviceAllocator, OrtMemTypeDefault);
+
+    std::vector<float> in_buf;
+    std::vector<float> out_buf;
+    std::vector<int64_t> in_shape;
+    std::vector<int64_t> out_shape;
+
+    int curW = 0;
+    int curH = 0;
+    int curOW = 0;
+    int curOH = 0;
+    bool bound = false;
+
+    Ort::Value in_tensor{nullptr};
+    Ort::Value out_tensor{nullptr};
+
+    explicit BindingCtx(Ort::Session& s) : io(s) {}
+};
+
+struct OrtEnvHolder {
+    Ort::Env env{ORT_LOGGING_LEVEL_WARNING, "dbnet"};
+};
+
+} // namespace
+
+struct DBNet::Impl {
+    OrtEnvHolder env_holder;
+    Ort::Session session{nullptr};
+    Ort::SessionOptions so;
+    Ort::AllocatorWithDefaultOptions alloc;
+    std::string in_name;
+    std::string out_name;
+    std::vector<std::unique_ptr<BindingCtx>> pool;
+
+    Impl(const std::string& model_path, const tdet::TextDetectorConfig& cfg, bool verbose);
+};
 
 static inline float sigmoidf_stable(float x) noexcept {
     if (x >= 0.0f) {
@@ -81,7 +124,7 @@ static float safe_scale_for_rect(const cv::RotatedRect& rr, const int W, const i
     return std::min(desired, smax * 0.999f);
 }
 
-DBNet::DBNet(const std::string& model_path, const int intra_threads, const int inter_threads, bool verbose) {
+DBNet::Impl::Impl(const std::string& model_path, const tdet::TextDetectorConfig& cfg, bool verbose) {
     if (verbose) {
         std::cout << "[INFO] " << Ort::GetBuildInfoString() << "\n";
         std::vector<std::string> providers = Ort::GetAvailableProviders();
@@ -93,16 +136,15 @@ DBNet::DBNet(const std::string& model_path, const int intra_threads, const int i
 
     so.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
 
-    // If 0 => keep ORT default. If <0 => clamp to 1. If >0 => set.
-    if (intra_threads < 0)
+    if (cfg.threads.ort_intra_threads < 0)
         so.SetIntraOpNumThreads(1);
-    else if (intra_threads > 0)
-        so.SetIntraOpNumThreads(intra_threads);
+    else if (cfg.threads.ort_intra_threads > 0)
+        so.SetIntraOpNumThreads(cfg.threads.ort_intra_threads);
 
-    if (inter_threads < 0)
+    if (cfg.threads.ort_inter_threads < 0)
         so.SetInterOpNumThreads(1);
-    else if (inter_threads > 0)
-        so.SetInterOpNumThreads(inter_threads);
+    else if (cfg.threads.ort_inter_threads > 0)
+        so.SetInterOpNumThreads(cfg.threads.ort_inter_threads);
 
     so.SetExecutionMode(ExecutionMode::ORT_SEQUENTIAL);
 
@@ -110,24 +152,27 @@ DBNet::DBNet(const std::string& model_path, const int intra_threads, const int i
     Ort::ThrowOnError(OrtSessionOptionsAppendExecutionProvider_ACL(so, /*fast_math=*/true));
 #endif
 
-    session = Ort::Session(env, model_path.c_str(), so);
+    session = Ort::Session(env_holder.env, model_path.c_str(), so);
 
-    {
-        Ort::AllocatedStringPtr in0 = session.GetInputNameAllocated(0, alloc);
-        Ort::AllocatedStringPtr out0 = session.GetOutputNameAllocated(0, alloc);
-        in_name = in0.get() ? in0.get() : std::string("input");
-        out_name = out0.get() ? out0.get() : std::string("output");
-    }
+    Ort::AllocatedStringPtr in0 = session.GetInputNameAllocated(0, alloc);
+    Ort::AllocatedStringPtr out0 = session.GetOutputNameAllocated(0, alloc);
+    in_name = in0.get() ? in0.get() : std::string("input");
+    out_name = out0.get() ? out0.get() : std::string("output");
 }
+
+DBNet::DBNet(const std::string& model_path, tdet::TextDetectorConfig cfg, bool verbose)
+    : impl_(std::make_unique<Impl>(model_path, cfg, verbose)), cfg_(std::move(cfg)) {}
+
+DBNet::~DBNet() = default;
 
 void DBNet::ensure_pool_size(int n) {
     if (n <= 0) n = 1;
-    if ((int)pool.size() >= n) return;
+    if ((int)impl_->pool.size() >= n) return;
 
-    const int old = (int)pool.size();
-    pool.resize(n);
+    const int old = (int)impl_->pool.size();
+    impl_->pool.resize(n);
     for (int i = old; i < n; ++i)
-        pool[i] = std::make_unique<BindingCtx>(session);
+        impl_->pool[i] = std::make_unique<BindingCtx>(impl_->session);
 }
 
 void DBNet::preprocess_dynamic(const cv::Mat& img_bgr, cv::Mat& resized, cv::Mat& blob) const {
@@ -137,9 +182,9 @@ void DBNet::preprocess_dynamic(const cv::Mat& img_bgr, cv::Mat& resized, cv::Mat
     const int h = bgr.rows, w = bgr.cols;
     float scale = 1.0f;
 
-    if (limit_side_len > 0) {
+    if (cfg_.infer.limit_side_len > 0) {
         const int max_side = std::max(h, w);
-        if (max_side > limit_side_len) scale = (float)limit_side_len / (float)max_side;
+        if (max_side > cfg_.infer.limit_side_len) scale = (float)cfg_.infer.limit_side_len / (float)max_side;
     }
 
     int nh = std::max(1, (int)std::lround(h * scale));
@@ -197,7 +242,12 @@ void DBNet::preprocess_fixed_into(float* dst_chw, const cv::Mat& img_bgr, const 
     }
 }
 
-void DBNet::prepare_binding(BindingCtx& ctx, const int W, const int H) {
+void DBNet::prepare_binding(int ctx_idx, const int W, const int H) {
+    if (ctx_idx < 0 || ctx_idx >= (int)impl_->pool.size()) {
+        throw std::runtime_error("[ERROR] prepare_binding: ctx_idx out of range");
+    }
+
+    auto& ctx = *impl_->pool[ctx_idx];
     if (ctx.bound && ctx.curW == W && ctx.curH == H) return;
     if (W <= 0 || H <= 0) throw std::runtime_error("[ERROR] prepare_binding: non-positive W/H");
 
@@ -210,10 +260,10 @@ void DBNet::prepare_binding(BindingCtx& ctx, const int W, const int H) {
     Ort::Value in_tmp = Ort::Value::CreateTensor<float>(ctx.mem, ctx.in_buf.data(), ctx.in_buf.size(),
                                                         ctx.in_shape.data(), ctx.in_shape.size());
 
-    const char* in_names[] = {in_name.c_str()};
-    const char* out_names[] = {out_name.c_str()};
+    const char* in_names[] = {impl_->in_name.c_str()};
+    const char* out_names[] = {impl_->out_name.c_str()};
 
-    auto outs = session.Run(Ort::RunOptions{nullptr}, in_names, &in_tmp, 1, out_names, 1);
+    auto outs = impl_->session.Run(Ort::RunOptions{nullptr}, in_names, &in_tmp, 1, out_names, 1);
     if (outs.size() != 1 || !outs[0].IsTensor()) {
         throw std::runtime_error("[ERROR] Unexpected output in probe(binding)");
     }
@@ -239,15 +289,15 @@ void DBNet::prepare_binding(BindingCtx& ctx, const int W, const int H) {
     ctx.out_tensor = Ort::Value::CreateTensor<float>(ctx.mem, ctx.out_buf.data(), ctx.out_buf.size(),
                                                      ctx.out_shape.data(), ctx.out_shape.size());
 
-    ctx.io.BindInput(in_name.c_str(), ctx.in_tensor);
-    ctx.io.BindOutput(out_name.c_str(), ctx.out_tensor);
+    ctx.io.BindInput(impl_->in_name.c_str(), ctx.in_tensor);
+    ctx.io.BindOutput(impl_->out_name.c_str(), ctx.out_tensor);
 
     ctx.curW = W;
     ctx.curH = H;
     ctx.bound = true;
 }
 
-std::vector<Detection> DBNet::postprocess(const cv::Mat& prob_map, const cv::Size& orig) const {
+std::vector<Detection> DBNet::postprocess(const cv::Mat& prob_map, const ImageSize& orig) const {
     if (prob_map.empty()) return {};
     if (prob_map.type() != CV_32F) throw std::runtime_error("[ERROR] postprocess: prob_map must be CV_32F");
     if (orig.width <= 0 || orig.height <= 0) return {};
@@ -257,7 +307,7 @@ std::vector<Detection> DBNet::postprocess(const cv::Mat& prob_map, const cv::Siz
     cv::Mat prob_up;
     cv::resize(prob_map, prob_up, orig, 0, 0, cv::INTER_LINEAR);
 
-    if (apply_sigmoid) {
+    if (cfg_.infer.apply_sigmoid) {
         for (int y = 0; y < prob_up.rows; ++y) {
             float* row = prob_up.ptr<float>(y);
             for (int x = 0; x < prob_up.cols; ++x)
@@ -266,7 +316,7 @@ std::vector<Detection> DBNet::postprocess(const cv::Mat& prob_map, const cv::Siz
     }
 
     cv::Mat bin;
-    cv::compare(prob_up, bin_thresh, bin, cv::CMP_GT);
+    cv::compare(prob_up, cfg_.infer.bin_thresh, bin, cv::CMP_GT);
 
     std::vector<std::vector<cv::Point>> contours;
     cv::findContours(bin, contours, cv::RETR_LIST, cv::CHAIN_APPROX_SIMPLE);
@@ -279,10 +329,10 @@ std::vector<Detection> DBNet::postprocess(const cv::Mat& prob_map, const cv::Siz
         if ((int)c.size() < 3) continue;
 
         const float sc = contour_score(prob_up, c);
-        if (sc < box_thresh) continue;
+        if (sc < cfg_.infer.box_thresh) continue;
 
         cv::RotatedRect rr = cv::minAreaRect(c);
-        const float s = safe_scale_for_rect(rr, W, H, unclip_ratio);
+        const float s = safe_scale_for_rect(rr, W, H, cfg_.infer.unclip);
         rr.size.width *= s;
         rr.size.height *= s;
 
@@ -294,7 +344,7 @@ std::vector<Detection> DBNet::postprocess(const cv::Mat& prob_map, const cv::Siz
 
         const float dw = std::hypot(q[1].x - q[0].x, q[1].y - q[0].y);
         const float dh = std::hypot(q[3].x - q[0].x, q[3].y - q[0].y);
-        if (std::min(dw, dh) < min_text_size) continue;
+        if (std::min(dw, dh) < cfg_.min_text_size) continue;
 
         Detection d;
         d.score = sc;
@@ -313,7 +363,7 @@ std::vector<Detection> DBNet::postprocess(const cv::Mat& prob_map, const cv::Siz
     // Use a working prob map if sigmoid is needed (do NOT mutate prob_map view into ORT buffers)
     const cv::Mat* pprob = &prob_map;
     thread_local cv::Mat prob_work;
-    if (apply_sigmoid) {
+    if (cfg_.infer.apply_sigmoid) {
         prob_work.create(prob_map.size(), CV_32F);
         prob_map.copyTo(prob_work);
         for (int y = 0; y < prob_work.rows; ++y) {
@@ -325,7 +375,7 @@ std::vector<Detection> DBNet::postprocess(const cv::Mat& prob_map, const cv::Siz
     }
 
     thread_local cv::Mat bin;
-    cv::compare(*pprob, bin_thresh, bin, cv::CMP_GT); // 0/255, CV_8U
+    cv::compare(*pprob, cfg_.infer.bin_thresh, bin, cv::CMP_GT); // 0/255, CV_8U
 
     std::vector<std::vector<cv::Point>> contours;
     cv::findContours(bin, contours, cv::RETR_LIST, cv::CHAIN_APPROX_SIMPLE);
@@ -339,7 +389,7 @@ std::vector<Detection> DBNet::postprocess(const cv::Mat& prob_map, const cv::Siz
         if ((int)c.size() < 3) continue;
 
         const float sc = contour_score(*pprob, c);
-        if (sc < box_thresh) continue;
+        if (sc < cfg_.infer.box_thresh) continue;
 
         // scale contour points to original image coordinates
         scaled.clear();
@@ -350,7 +400,7 @@ std::vector<Detection> DBNet::postprocess(const cv::Mat& prob_map, const cv::Siz
 
         cv::RotatedRect rr = cv::minAreaRect(scaled);
 
-        const float s = safe_scale_for_rect(rr, W, H, unclip_ratio);
+        const float s = safe_scale_for_rect(rr, W, H, cfg_.infer.unclip);
         rr.size.width *= s;
         rr.size.height *= s;
 
@@ -362,7 +412,7 @@ std::vector<Detection> DBNet::postprocess(const cv::Mat& prob_map, const cv::Siz
 
         const float dw = std::hypot(q[1].x - q[0].x, q[1].y - q[0].y);
         const float dh = std::hypot(q[3].x - q[0].x, q[3].y - q[0].y);
-        if (std::min(dw, dh) < min_text_size) continue;
+        if (std::min(dw, dh) < cfg_.min_text_size) continue;
 
         Detection d;
         d.score = sc;
@@ -384,9 +434,9 @@ std::vector<Detection> DBNet::infer_unbound(const cv::Mat& img_bgr, double* ms_o
     t.tic();
 
     // If fixed_W/H are set => fixed path, else dynamic path (best recall for full-frame)
-    if (fixed_W > 0 && fixed_H > 0) {
-        const int W = fixed_W;
-        const int H = fixed_H;
+    if (cfg_.infer.fixed_W > 0 && cfg_.infer.fixed_H > 0) {
+        const int W = cfg_.infer.fixed_W;
+        const int H = cfg_.infer.fixed_H;
 
         thread_local std::vector<float> blob;
         const size_t inN = (size_t)3 * (size_t)W * (size_t)H;
@@ -398,10 +448,10 @@ std::vector<Detection> DBNet::infer_unbound(const cv::Mat& img_bgr, double* ms_o
         Ort::Value in =
             Ort::Value::CreateTensor<float>(cpu_mem, blob.data(), blob.size(), ishape.data(), ishape.size());
 
-        const char* in_names[] = {in_name.c_str()};
-        const char* out_names[] = {out_name.c_str()};
+        const char* in_names[] = {impl_->in_name.c_str()};
+        const char* out_names[] = {impl_->out_name.c_str()};
 
-        auto out = session.Run(Ort::RunOptions{nullptr}, in_names, &in, 1, out_names, 1);
+        auto out = impl_->session.Run(Ort::RunOptions{nullptr}, in_names, &in, 1, out_names, 1);
         if (ms_out) *ms_out = t.toc_ms();
 
         if (out.size() != 1 || !out[0].IsTensor()) throw std::runtime_error("[ERROR] Bad output");
@@ -430,7 +480,7 @@ std::vector<Detection> DBNet::infer_unbound(const cv::Mat& img_bgr, double* ms_o
 
         const float* prob = out[0].GetTensorData<float>();
         cv::Mat prob_map(oh, ow, CV_32F, const_cast<float*>(prob));
-        return postprocess(prob_map, img_bgr.size());
+        return postprocess(prob_map, ImageSize{img_bgr.cols, img_bgr.rows});
     }
 
     // Dynamic path (accurate for non-tiled full image)
@@ -444,10 +494,10 @@ std::vector<Detection> DBNet::infer_unbound(const cv::Mat& img_bgr, double* ms_o
 
     Ort::Value in = Ort::Value::CreateTensor<float>(cpu_mem, (float*)blob.data, inN, ishape.data(), ishape.size());
 
-    const char* in_names[] = {in_name.c_str()};
-    const char* out_names[] = {out_name.c_str()};
+    const char* in_names[] = {impl_->in_name.c_str()};
+    const char* out_names[] = {impl_->out_name.c_str()};
 
-    auto out = session.Run(Ort::RunOptions{nullptr}, in_names, &in, 1, out_names, 1);
+    auto out = impl_->session.Run(Ort::RunOptions{nullptr}, in_names, &in, 1, out_names, 1);
     if (ms_out) *ms_out = t.toc_ms();
 
     if (out.size() != 1 || !out[0].IsTensor()) throw std::runtime_error("[ERROR] Bad output");
@@ -476,28 +526,28 @@ std::vector<Detection> DBNet::infer_unbound(const cv::Mat& img_bgr, double* ms_o
 
     const float* prob = out[0].GetTensorData<float>();
     cv::Mat prob_map(oh, ow, CV_32F, const_cast<float*>(prob));
-    return postprocess(prob_map, img_bgr.size());
+    return postprocess(prob_map, ImageSize{img_bgr.cols, img_bgr.rows});
 }
 
 std::vector<Detection> DBNet::infer_bound(const cv::Mat& img_bgr, int ctx_idx, double* ms_out) {
     if (img_bgr.empty()) throw std::runtime_error("[ERROR] infer_bound: empty image");
-    if (ctx_idx < 0 || ctx_idx >= (int)pool.size()) {
+    if (ctx_idx < 0 || ctx_idx >= (int)impl_->pool.size()) {
         throw std::runtime_error("[ERROR] infer_bound: ctx_idx out of range (pool not prepared?)");
     }
 
-    auto& ctx = *pool[ctx_idx];
+    auto& ctx = *impl_->pool[ctx_idx];
 
-    int W = fixed_W > 0 ? fixed_W : ((limit_side_len > 0) ? limit_side_len : 640);
-    int H = fixed_H > 0 ? fixed_H : ((limit_side_len > 0) ? limit_side_len : 640);
+    int W = cfg_.infer.fixed_W > 0 ? cfg_.infer.fixed_W : ((cfg_.infer.limit_side_len > 0) ? cfg_.infer.limit_side_len : 640);
+    int H = cfg_.infer.fixed_H > 0 ? cfg_.infer.fixed_H : ((cfg_.infer.limit_side_len > 0) ? cfg_.infer.limit_side_len : 640);
     W = align_down32_safe(std::max(1, W));
     H = align_down32_safe(std::max(1, H));
 
-    prepare_binding(ctx, W, H);
+    prepare_binding(ctx_idx, W, H);
     preprocess_fixed_into(ctx.in_buf.data(), img_bgr, W, H);
 
     Timer t;
     t.tic();
-    session.Run(Ort::RunOptions{nullptr}, ctx.io);
+    impl_->session.Run(Ort::RunOptions{nullptr}, ctx.io);
     if (ms_out) *ms_out = t.toc_ms();
 
     const size_t rank = ctx.out_shape.size();
@@ -522,5 +572,5 @@ std::vector<Detection> DBNet::infer_bound(const cv::Mat& img_bgr, int ctx_idx, d
 
     const float* plane = ctx.out_buf.data(); // channel 0
     cv::Mat prob_map(oh, ow, CV_32F, const_cast<float*>(plane));
-    return postprocess(prob_map, img_bgr.size());
+    return postprocess(prob_map, ImageSize{img_bgr.cols, img_bgr.rows});
 }

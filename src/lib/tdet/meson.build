@@ -2,6 +2,8 @@ tdet_source = files(
     'tdet.cpp',
     'cross_topology.cpp',
     'dbnet.cpp',
+    'run_face.cpp',
+    'face_detector.cpp',
     'drawing.cpp',
     'geometry.cpp',
     'nms.cpp',

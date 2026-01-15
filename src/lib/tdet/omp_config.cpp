@@ -5,7 +5,7 @@
 #include <thread>
 
 #if defined(_OPENMP)
-#include <omp.h>
+    #include <omp.h>
 #endif
 
 #include "omp_config.h"
@@ -70,17 +70,17 @@ void configure_openmp_affinity(const std::string& omp_places_cli, const std::str
     omp_set_dynamic(0);
 
     // 2. disable neseted parallelism
-#if _OPENMP >= 200805 // OpenMP 3.0+
+    #if _OPENMP >= 200805 // OpenMP 3.0+
     omp_set_max_active_levels(1);
-#else
+    #else
     omp_set_nested(0);
-#endif
+    #endif
 
     // 3. set number of threads
     omp_set_num_threads(threads);
 
     // 4. set schedule type
-#if _OPENMP >= 200805 // OpenMP 3.0+
+    #if _OPENMP >= 200805 // OpenMP 3.0+
     omp_sched_t cur_kind;
     int cur_chunk;
     omp_get_schedule(&cur_kind, &cur_chunk);
@@ -88,7 +88,7 @@ void configure_openmp_affinity(const std::string& omp_places_cli, const std::str
         // chunk==0 => auto block size detection
         omp_set_schedule(omp_sched_static, cur_chunk > 0 ? cur_chunk : 0);
     }
-#endif
+    #endif
 #endif // _OPENMP
 
     // Display info

@@ -1,5 +1,5 @@
 #include <iostream>
-#include <yuv_viewer.h>
+#include <yuvv.h>
 
 int main(int argc, char** argv) {
 
