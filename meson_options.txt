@@ -67,3 +67,10 @@ option(
     value       : false,
     description : 'Turn on extra warnings (-Wall -Wextra -Wpedantic -Wconversion -Wshadow)',
 )
+
+option(
+    'build_blob_models',
+    type        : 'boolean',
+    value       : true,
+    description : 'Embed onnx models in final binary',
+)

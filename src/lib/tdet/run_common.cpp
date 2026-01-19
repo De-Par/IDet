@@ -2,10 +2,10 @@
 
 #include "drawing.h"
 #include "geometry.h"
+#include "internal/progress_bar.h"
 #include "nms.h"
 #include "tiling.h"
 #include "timer.h"
-#include "internal/progress_bar.h"
 
 #include <algorithm>
 #include <iostream>
@@ -73,9 +73,8 @@ double mean_of(const std::vector<double>& v) {
 
 } // namespace
 
-bool run_detector_single(
-    DetectorConfig& cfg,
-    const std::function<std::unique_ptr<IDetector>(const DetectorConfig&)>& make_detector) {
+bool run_detector_single(DetectorConfig& cfg,
+                         const std::function<std::unique_ptr<IDetector>(const DetectorConfig&)>& make_detector) {
     cv::Mat img = cv::imread(cfg.paths.image_path, cv::IMREAD_COLOR);
     if (img.empty()) {
         std::cerr << "[ERROR] Cannot read image: " << cfg.paths.image_path << "\n";
@@ -102,8 +101,10 @@ bool run_detector_single(
     double ms_nms = t.toc_ms();
 
     std::cout << "Time: " << ms_infer;
-    if (use_tiles) std::cout << " + " << ms_nms << " ms (infer + nms)";
-    else std::cout << " ms";
+    if (use_tiles)
+        std::cout << " + " << ms_nms << " ms (infer + nms)";
+    else
+        std::cout << " ms";
     std::cout << ", dets=" << dets.size() << "\n";
 
     if (cfg.output.is_draw) {
@@ -117,9 +118,8 @@ bool run_detector_single(
     return true;
 }
 
-bool run_detector_bench(
-    DetectorConfig& cfg,
-    const std::function<std::unique_ptr<IDetector>(const DetectorConfig&)>& make_detector) {
+bool run_detector_bench(DetectorConfig& cfg,
+                        const std::function<std::unique_ptr<IDetector>(const DetectorConfig&)>& make_detector) {
     cv::Mat img = cv::imread(cfg.paths.image_path, cv::IMREAD_COLOR);
     if (img.empty()) {
         std::cerr << "[ERROR] Cannot read image: " << cfg.paths.image_path << "\n";
@@ -175,8 +175,7 @@ bool run_detector_bench(
     double mean_infer = mean_of(infer_times);
     double mean_nms = mean_of(nms_times);
     std::cout << "[BENCH]"
-              << " | dets=" << dets.size()
-              << " | mean_infer=" << mean_infer << " ms"
+              << " | dets=" << dets.size() << " | mean_infer=" << mean_infer << " ms"
               << " | mean_nms=" << mean_nms << " ms"
               << " | p50=" << percentile(infer_times, 50) << " ms"
               << " | p90=" << percentile(infer_times, 90) << " ms"

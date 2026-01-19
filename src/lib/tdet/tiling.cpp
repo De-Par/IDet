@@ -1,9 +1,9 @@
 #include "tiling.h"
 
-#include "nms.h"
 #include "dbnet.h"
 #include "detector.h"
 #include "face_detector.h"
+#include "nms.h"
 #include "opencv_headers.h"
 #include "timer.h"
 

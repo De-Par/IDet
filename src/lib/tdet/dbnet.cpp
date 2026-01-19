@@ -541,8 +541,10 @@ std::vector<Detection> DBNet::infer_bound(const cv::Mat& img_bgr, int ctx_idx, d
 
     auto& ctx = *impl_->pool[ctx_idx];
 
-    int W = cfg_.infer.fixed_W > 0 ? cfg_.infer.fixed_W : ((cfg_.infer.limit_side_len > 0) ? cfg_.infer.limit_side_len : 640);
-    int H = cfg_.infer.fixed_H > 0 ? cfg_.infer.fixed_H : ((cfg_.infer.limit_side_len > 0) ? cfg_.infer.limit_side_len : 640);
+    int W = cfg_.infer.fixed_W > 0 ? cfg_.infer.fixed_W
+                                   : ((cfg_.infer.limit_side_len > 0) ? cfg_.infer.limit_side_len : 640);
+    int H = cfg_.infer.fixed_H > 0 ? cfg_.infer.fixed_H
+                                   : ((cfg_.infer.limit_side_len > 0) ? cfg_.infer.limit_side_len : 640);
     W = align_down32_safe(std::max(1, W));
     H = align_down32_safe(std::max(1, H));
 

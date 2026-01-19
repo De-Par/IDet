@@ -28,16 +28,17 @@ is_gcc    = (cpp.get_id() == 'gcc')
 # Project options (see meson_options.txt)
 # ------------------------------------------------------------------------
 
-is_system_ort = get_option('onnxruntime_system')
-ort_inc_dir    = get_option('onnxruntime_inc')
-ort_lib_dir    = get_option('onnxruntime_lib')
-cpu_opt        = get_option('cpu_opt')
-fast_math     = get_option('fast_math')
-thinlto       = get_option('thinlto')
-use_openmp    = get_option('use_openmp')
-use_numa      = get_option('use_numa')
-rpath_extra    = get_option('install_rpath_extra')
-strict_warn   = get_option('strict_warnings')
+is_system_ort   = get_option('onnxruntime_system')
+ort_inc_dir     = get_option('onnxruntime_inc')
+ort_lib_dir     = get_option('onnxruntime_lib')
+cpu_opt         = get_option('cpu_opt')
+fast_math       = get_option('fast_math')
+thinlto         = get_option('thinlto')
+use_openmp      = get_option('use_openmp')
+use_numa        = get_option('use_numa')
+rpath_extra     = get_option('install_rpath_extra')
+strict_warn     = get_option('strict_warnings')
+use_blob_models = get_option('build_blob_models')
 
 # ------------------------------------------------------------------------
 # Compile / link flags 

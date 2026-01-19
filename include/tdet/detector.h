@@ -22,16 +22,22 @@ class IDetector {
     virtual std::vector<Detection> detect(const cv::Mat& img_bgr, double* ms_out = nullptr) = 0;
 
     /** @brief Поддерживает ли детектор I/O binding. */
-    virtual bool supports_binding() const { return false; }
+    virtual bool supports_binding() const {
+        return false;
+    }
 
     /**
      * @brief Подготовка биндинга для фиксированного WxH и указанного числа контекстов (потоков).
      * @return true при успешной подготовке.
      */
-    virtual bool prepare_binding(int w, int h, int contexts) { return false; }
+    virtual bool prepare_binding(int w, int h, int contexts) {
+        return false;
+    }
 
     /** @brief Максимальное число потоков при работе через биндинг. */
-    virtual int binding_thread_limit() const { return 1; }
+    virtual int binding_thread_limit() const {
+        return 1;
+    }
 
     /**
      * @brief Запуск на уже подготовленном биндинге (ctx_idx — индекс контекста/потока).

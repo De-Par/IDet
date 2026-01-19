@@ -205,7 +205,7 @@ bool parse_arguments(int argc, char** argv, std::unique_ptr<tdet::DetectorConfig
         }
     }
 
-    if (o.paths.model_path.empty() || o.paths.image_path.empty()) return false;
+    if (o.paths.image_path.empty()) return false;
 
     if (!o.tiling.fixed_wh.empty()) {
         size_t pos = o.tiling.fixed_wh.find_first_of("xX*");

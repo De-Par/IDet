@@ -113,4 +113,3 @@ class ProgressBar {
 };
 
 } // namespace util
-
