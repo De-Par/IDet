@@ -1,15 +1,16 @@
 #include "face_detector.h"
 
 #include "geometry.h"
+#include "internal/model_blob_factory.h"
 #include "opencv_headers.h"
 #include "timer.h"
 
 #include <algorithm>
-#include <unordered_map>
-#include <stdexcept>
 #include <cmath>
-#include <iostream>
 #include <cstring>
+#include <iostream>
+#include <stdexcept>
+#include <unordered_map>
 
 namespace {
 inline Detection rect_to_detection(const cv::Rect2f& r, float score) {
@@ -24,16 +25,20 @@ inline Detection rect_to_detection(const cv::Rect2f& r, float score) {
 } // namespace
 
 FaceDetector::FaceDetector(tdet::FaceDetectorConfig cfg) : cfg_(std::move(cfg)) {
-    if (cfg_.paths.model_path.empty()) {
-        throw std::runtime_error("[ERROR] FaceDetector: empty model path");
-    }
-
     so_.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
     if (cfg_.threads.ort_intra_threads > 0) so_.SetIntraOpNumThreads(cfg_.threads.ort_intra_threads);
     if (cfg_.threads.ort_inter_threads > 0) so_.SetInterOpNumThreads(cfg_.threads.ort_inter_threads);
     so_.SetExecutionMode(ExecutionMode::ORT_SEQUENTIAL);
 
-    session_ = Ort::Session(env_, cfg_.paths.model_path.c_str(), so_);
+    if (!cfg_.paths.model_path.empty()) {
+        session_ = Ort::Session(env_, cfg_.paths.model_path.c_str(), so_);
+    } else {
+        ModelBlob blob = get_face_blob();
+        if (!blob.data || blob.size == 0) {
+            throw std::runtime_error("[ERROR] FaceDetector: empty model path and no embedded model");
+        }
+        session_ = Ort::Session(env_, blob.data, blob.size, so_);
+    }
 
     Ort::AllocatedStringPtr in0 = session_.GetInputNameAllocated(0, alloc_);
     in_name_ = in0 ? in0.get() : std::string("input");
@@ -58,8 +63,7 @@ void FaceDetector::preprocess(const cv::Mat& img_bgr, cv::Mat& resized, cv::Mat&
         float scale = 1.0f;
         if (cfg_.infer.limit_side_len > 0) {
             const int max_side = std::max(h, w);
-            if (max_side > cfg_.infer.limit_side_len)
-                scale = (float)cfg_.infer.limit_side_len / (float)max_side;
+            if (max_side > cfg_.infer.limit_side_len) scale = (float)cfg_.infer.limit_side_len / (float)max_side;
         }
         target_w = std::max(1, (int)std::lround(w * scale));
         target_h = std::max(1, (int)std::lround(h * scale));
@@ -128,8 +132,8 @@ std::vector<Detection> FaceDetector::postprocess(const float* boxes, const float
 
 static std::vector<Detection> decode_scrfd_heads(const std::unordered_map<std::string, Ort::Value>& outs,
                                                  const cv::Size& orig, float sx, float sy, float score_thr,
-                                                 bool apply_sigmoid, int min_w, int min_h, bool verbose,
-                                                 int in_h, int in_w) {
+                                                 bool apply_sigmoid, int min_w, int min_h, bool verbose, int in_h,
+                                                 int in_w) {
     struct Head {
         const float* score = nullptr;
         const float* bbox = nullptr;
@@ -209,9 +213,8 @@ static std::vector<Detection> decode_scrfd_heads(const std::unordered_map<std::s
 
     if (0) {
         for (const auto& h : heads) {
-            std::cerr << "[DEBUG] head stride=" << h.stride << " score_hw=" << h.h << "x" << h.w
-                      << " ch=" << h.score_ch << " anchors=" << h.anchors << " flat=" << h.flat
-                      << " bbox_chw=" << h.bbox_chw << "\n";
+            std::cerr << "[DEBUG] head stride=" << h.stride << " score_hw=" << h.h << "x" << h.w << " ch=" << h.score_ch
+                      << " anchors=" << h.anchors << " flat=" << h.flat << " bbox_chw=" << h.bbox_chw << "\n";
         }
     }
 
@@ -286,8 +289,8 @@ static std::vector<Detection> decode_scrfd_heads(const std::unordered_map<std::s
         }
         if (0) {
             std::cerr << "[DEBUG] head stride=" << head.stride << " passed " << passed << " / "
-                      << (head.h * head.w * head.anchors) << " (thr=" << score_thr
-                      << ") raw_min=" << min_raw << " raw_max=" << max_raw << "\n";
+                      << (head.h * head.w * head.anchors) << " (thr=" << score_thr << ") raw_min=" << min_raw
+                      << " raw_max=" << max_raw << "\n";
         }
     }
 
@@ -348,13 +351,11 @@ bool FaceDetector::prepare_binding(int target_w, int target_h, int /*contexts*/)
 
     // Input
     const std::vector<int64_t> ishape = {1, 3, target_h, target_w};
-    Ort::Value in = Ort::Value::CreateTensor<float>(cpu_mem, input_buf_.data(), input_buf_.size(), ishape.data(),
-                                                    ishape.size());
+    Ort::Value in =
+        Ort::Value::CreateTensor<float>(cpu_mem, input_buf_.data(), input_buf_.size(), ishape.data(), ishape.size());
 
     // Outputs (flattened layout)
-    auto head_hw = [&](int stride) {
-        return std::pair<int, int>{target_h / stride, target_w / stride};
-    };
+    auto head_hw = [&](int stride) { return std::pair<int, int>{target_h / stride, target_w / stride}; };
     std::vector<std::vector<int64_t>> shapes;
     shapes.reserve(out_names_.size());
     for (const auto& name : out_names_) {
@@ -376,11 +377,11 @@ bool FaceDetector::prepare_binding(int target_w, int target_h, int /*contexts*/)
     bound_tensors_.push_back(std::move(in));
     for (size_t i = 0; i < out_names_.size(); ++i) {
         size_t numel = 1;
-        for (auto v : shapes[i]) numel *= (size_t)v;
+        for (auto v : shapes[i])
+            numel *= (size_t)v;
         out_bufs_[i].assign(numel, 0.f);
-        bound_tensors_.push_back(
-            Ort::Value::CreateTensor<float>(cpu_mem, out_bufs_[i].data(), out_bufs_[i].size(), shapes[i].data(),
-                                            shapes[i].size()));
+        bound_tensors_.push_back(Ort::Value::CreateTensor<float>(cpu_mem, out_bufs_[i].data(), out_bufs_[i].size(),
+                                                                 shapes[i].data(), shapes[i].size()));
     }
 
     binding_ = std::make_unique<Ort::IoBinding>(session_);

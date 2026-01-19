@@ -41,7 +41,6 @@ if [ "$MODE" == "tile" ]; then
 else
     $APP \
         --mode face \
-        --model $MODEL \
         --image $IMG \
         --min_text_size 10 --unclip 1.1 \
         --bin_thresh 0.3 \
@@ -51,5 +50,5 @@ else
         --verbose 1 --is_draw 1 \
         --side 320 \
         --threads_intra 10 --threads_inter 1 --tile_omp 1 \
-        --bench 100 --warmup 20
+        --bench 200 --warmup 100
 fi

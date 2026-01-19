@@ -14,11 +14,7 @@
 
 namespace tdet {
 
-enum class DetectorKind {
-    Text,
-    Face,
-    Unknown
-};
+enum class DetectorKind { Text, Face, Unknown };
 
 /** @brief Пути к модели, входному изображению и выходному файлу. */
 struct Paths {

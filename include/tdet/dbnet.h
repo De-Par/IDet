@@ -1,7 +1,7 @@
 #pragma once
 
-#include "tdet.h"
 #include "detector.h"
+#include "tdet.h"
 
 #include <memory>
 #include <string>
@@ -25,9 +25,13 @@ class DBNet : public IDetector {
 
     // IDetector
     std::vector<Detection> detect(const cv::Mat& img_bgr, double* ms_out = nullptr) override;
-    bool supports_binding() const override { return true; }
+    bool supports_binding() const override {
+        return true;
+    }
     bool prepare_binding(int w, int h, int contexts) override;
-    int binding_thread_limit() const override { return pool_size_; }
+    int binding_thread_limit() const override {
+        return pool_size_;
+    }
     std::vector<Detection> detect_bound(const cv::Mat& img_bgr, int ctx_idx, double* ms_out = nullptr) override;
 
     // Legacy API (останутся для совместимости)
