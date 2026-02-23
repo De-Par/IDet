@@ -1,7 +1,23 @@
 option(
+    'idet_libtype',
+    type        : 'combo',
+    choices     : ['shared', 'static', 'both'],
+    value       : 'shared',
+    description : 'Build type of IDet library: shared / static / both',
+)
+
+option(
+    'idet_exe_link',
+    type        : 'combo',
+    choices     : ['shared', 'static'],
+    value       : 'shared',
+    description : 'Link executables against shared or static IDet when idet_libtype=both',
+)
+
+option(
     'onnxruntime_system',
     type        : 'boolean',
-    value       : true,
+    value       : false,  # set 'true' on MacOS after ORT installation via brew package manager
     description : 'Use system-installed ONNX Runtime instead of building the bundled subproject',
 )
 
@@ -17,6 +33,13 @@ option(
     type        : 'string',
     value       : '',  # /usr/local/lib  ->  system
     description : 'Manual path to directory containing ONNX Runtime libraries. Used only when CMake package is not found',
+)
+
+option(
+    'embed_onnx_models',
+    type        : 'boolean',
+    value       : false,
+    description : 'Embed ONNX models into final binary for each type of detector (e.g. text | face | etc.)',
 )
 
 option(
@@ -69,8 +92,8 @@ option(
 )
 
 option(
-    'build_blob_models',
+    'build_tests',
     type        : 'boolean',
     value       : true,
-    description : 'Embed onnx models in final binary',
+    description : 'Build unit tests and run them using GTest',
 )
