@@ -1,110 +1,177 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -euo pipefail
 
-# Navigate to root dir of project
-SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
-PARENT_DIR="$(dirname "$SCRIPT_DIR")"
-cd $PARENT_DIR
+# ------------------------- paths -------------------------
 
-# -------------------------------
-# Search clang-format
-# -------------------------------
-CLANG_FORMAT_BIN="${CLANG_FORMAT_BIN:-}"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+ROOT_DIR="$(cd -- "${SCRIPT_DIR}/.." && pwd -P)"
+cd -- "${ROOT_DIR}"
 
-if [[ -n "$CLANG_FORMAT_BIN" ]]; then
-    # User set specified bin path
-    if ! command -v "$CLANG_FORMAT_BIN" >/dev/null 2>&1; then
-        echo "[ERROR] Specified CLANG_FORMAT_BIN='$CLANG_FORMAT_BIN' not find in PATH." >&2
-        exit 1
-    fi
-else
-    # Auto-search by names
-    CANDIDATES=(
-        "clang-format"
-        "clang-format-21"
-        "clang-format-20"
-        "clang-format-19"
-        "clang-format-18"
-        "clang-format-17"
-        "clang-format-16"
-        "clang-format-15"
-        "clang-format-14"
-    )
+# ------------------------- logging -------------------------
 
-    for bin in "${CANDIDATES[@]}"; do
-        if command -v "$bin" >/dev/null 2>&1; then
-            CLANG_FORMAT_BIN="$bin"
-            break
-        fi
-    done
+log()  { printf '%s\n' "$*"; }
+warn() { printf '%s\n' "[WARN] $*" >&2; }
+die()  { printf '%s\n' "[ERROR] $*" >&2; exit 1; }
 
-    if [[ -z "$CLANG_FORMAT_BIN" ]]; then
-        echo "[ERROR] clang-format not found: install it and check in PATH" >&2
-        echo "The following command options are considered: ${CANDIDATES[*]}" >&2
-        exit 1
-    fi
+need_cmd() { command -v -- "$1" >/dev/null 2>&1 || die "Command '$1' not found in PATH"; }
+
+usage() {
+    cat <<EOF
+Formats C/C++ sources in-place (or checks formatting without modifying)
+
+Usage:
+    ./scripts/format_code.sh [--check|--help]
+
+Examples:
+    source toolchain/scripts/activate.sh 
+    ./scripts/format_code.sh --check
+    ./scripts/format_code.sh 
+EOF
+}
+
+# ------------------------- args -------------------------
+
+CHECK_ONLY=0
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --check) CHECK_ONLY=1; shift ;;
+        -h|--help|help) usage; exit 0 ;;
+        *) die "Unknown argument: '$1' (use --help)" ;;
+    esac
+done
+
+# ------------------------- require activated env -------------------------
+
+if [[ "${TC_ACTIVE:-0}" != "1" ]]; then
+    die "Toolchain environment is not active. Run: source toolchain/scripts/activate.sh <profile>"
 fi
 
-echo "[INFO] Find clang-format: $CLANG_FORMAT_BIN"
-echo "----------------------------"
-if ! "$CLANG_FORMAT_BIN" --version; then
-    echo "⚠️ Enable to get clang-format version" >&2
+CLANG_FORMAT_BIN="${CLANG_FORMAT:-}"
+[[ -n "${CLANG_FORMAT_BIN}" ]] || die "CLANG_FORMAT is not set in env (activate.sh should set it)"
+need_cmd "${CLANG_FORMAT_BIN}"
+
+log "[INFO] clang-format: ${CLANG_FORMAT_BIN}"
+"${CLANG_FORMAT_BIN}" --version 2>/dev/null || true
+
+# ------------------------- inputs (dirs/exts) -------------------------
+
+# Defaults apply only if env is not set (we do NOT override env values)
+SEARCH_DIRS_STR="${SEARCH_DIRS:-include src tests}"
+EXTS_STR="${EXTS:-c h cc cpp cxx hpp hxx}"
+
+# Split env strings into arrays (space-separated)
+IFS=' ' read -r -a SEARCH_DIRS_ARR <<< "${SEARCH_DIRS_STR}"
+IFS=' ' read -r -a FILE_EXTENSIONS <<< "${EXTS_STR}"
+
+# Keep only existing dirs
+REAL_DIRS=()
+for d in "${SEARCH_DIRS_ARR[@]-}"; do
+    if [[ -d "${d}" ]]; then
+        REAL_DIRS+=("${d}")
+    else
+        warn "Search dir '${d}' not found, skip"
+    fi
+done
+
+if ((${#REAL_DIRS[@]} == 0)); then
+    log "[INFO] No search dirs exist. Nothing to do"
+    exit 0
 fi
-echo "----------------------------"
 
-# Where search files (dirs)
-SEARCH_DIRS=("src" "include")
-
-# Which extensions formatting
-FILE_EXTENSIONS=("c" "h" "cc" "cpp" "cxx" "hpp" "hxx")
-
-# Build command for 'find': -name '*.cpp' -o -name '*.hpp' ...
+# Build find expression: \( -name '*.c' -o -name '*.cpp' ... \)
 find_expr=()
-for ext in "${FILE_EXTENSIONS[@]}"; do
+for ext in "${FILE_EXTENSIONS[@]-}"; do
+    [[ -n "${ext}" ]] || continue
     if ((${#find_expr[@]} > 0)); then
         find_expr+=(-o)
     fi
     find_expr+=(-name "*.${ext}")
 done
 
-# Search files, carefully processing spaces in the names (print0 + mapfile)
 FILES=()
 while IFS= read -r -d '' f; do
     FILES+=("$f")
-done < <(find "${SEARCH_DIRS[@]}" -type f \( "${find_expr[@]}" \) -print0)
+done < <(find "${REAL_DIRS[@]-}" -type f \( "${find_expr[@]-}" \) -print0 2>/dev/null)
 
 if ((${#FILES[@]} == 0)); then
-    echo "[INFO] No files to format. Exit"
+    log "[INFO] No files to format. Exit"
     exit 0
 fi
 
-# Temp catalog for old versions of files
-tmpdir=$(mktemp -d)
-trap 'rm -rf "$tmpdir"' EXIT
+log "[INFO] Only check: ${CHECK_ONLY}"
+log "[INFO] Files found: ${#FILES[@]}"
 
-for f in "${FILES[@]}"; do
-    mkdir -p "${tmpdir}/$(dirname "$f")"
-    cp "$f" "${tmpdir}/$f"
+# ------------------------- fast check mode (if supported) -------------------------
+# If clang-format supports --dry-run and -Werror, do a fast check and exit early.
+if (( CHECK_ONLY == 1 )); then
+    if "${CLANG_FORMAT_BIN}" --help 2>/dev/null | grep -q -- '--dry-run' \
+        && "${CLANG_FORMAT_BIN}" --help 2>/dev/null | grep -q -- '-Werror'; then
+        if "${CLANG_FORMAT_BIN}" --dry-run -Werror -- "${FILES[@]-}" >/dev/null 2>&1; then
+            log "✅ No formatting changes"
+            exit 0
+        fi
+    fi
+fi
+
+# ------------------------- portable mktemp -------------------------
+
+mktemp_dir() {
+    # Linux: mktemp -d works; macOS: mktemp -d needs -t template
+    local d=""
+    if d="$(mktemp -d 2>/dev/null)"; then
+        printf '%s\n' "$d"
+        return 0
+    fi
+    d="$(mktemp -d -t idet_clangfmt 2>/dev/null)" || return 1
+    printf '%s\n' "$d"
+}
+
+TMPDIR="$(mktemp_dir)" || die "mktemp failed"
+trap 'rm -rf -- "${TMPDIR}"' EXIT
+
+# ------------------------- backup originals -------------------------
+
+for f in "${FILES[@]-}"; do
+    mkdir -p -- "${TMPDIR}/$(dirname -- "${f}")"
+    cp -p -- "${f}" "${TMPDIR}/${f}"
 done
 
-# Formatting on-site
-"$CLANG_FORMAT_BIN" -i "${FILES[@]}"
+# ------------------------- format in-place -------------------------
 
-# Check changes
+"${CLANG_FORMAT_BIN}" -i -- "${FILES[@]-}"
+
+# ------------------------- detect changes -------------------------
+
 changed_files=()
-for f in "${FILES[@]}"; do
-    if ! cmp -s "$f" "${tmpdir}/$f"; then
-        changed_files+=("$f")
+for f in "${FILES[@]-}"; do
+    if ! cmp -s -- "${f}" "${TMPDIR}/${f}"; then
+        changed_files+=("${f}")
     fi
 done
 
-echo "Formatting..."
-if ((${#changed_files[@]} == 0)); then
-    echo "✅ There are no changes, everything is fine"
-else
-    echo "Formatted files:"
-    for line in "${changed_files[@]}"; do
-        echo "🟡 $line"
+# Restore originals in check mode
+if (( CHECK_ONLY == 1 )); then
+    for f in "${FILES[@]-}"; do
+        cp -p -- "${TMPDIR}/${f}" "${f}"
     done
 fi
+
+# ------------------------- report -------------------------
+
+if ((${#changed_files[@]} == 0)); then
+    log "✅ No formatting changes"
+    exit 0
+fi
+
+log "[INFO] Formatting would change files:"
+for f in "${changed_files[@]-}"; do
+    log "🟡 ${f}"
+done
+
+if (( CHECK_ONLY == 1 )); then
+    warn "Formatting disabled (run without --check to apply)"
+    exit 0
+fi
+
+log "✅ Done"
