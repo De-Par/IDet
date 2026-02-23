@@ -1,110 +1,81 @@
 #pragma once
 
-#if defined(_WIN32) || defined(__CYGWIN__)
-    #if defined(YUVV_BUILD_SHARED)
-        #define YUVV_API __declspec(dllexport)
-    #else
-        #define YUVV_API
-    #endif
-#else // Linux / macOS / etc.
-    #if defined(YUVV_BUILD_SHARED) && __GNUC__ >= 4
-        #define YUVV_API __attribute__((visibility("default")))
-    #else
-        #define YUVV_API
-    #endif
-#endif
-
-#if defined(__has_include) && __has_include(<opencv4/opencv2/opencv.hpp>)
-    #include <opencv4/opencv2/opencv.hpp>
-#elif defined(__has_include) && __has_include(<opencv2/opencv.hpp>)
-    #include <opencv2/opencv.hpp>
-#else
-    #error "[ERROR] OpenCV 'opencv.hpp' header not found"
-#endif
-
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <string>
 
-namespace yuv {
+#if defined(YUVV_BUILD_STATIC)
+    #define YUVV_API
+#else
+    #if defined(_WIN32) || defined(__CYGWIN__)
+        #if defined(YUVV_BUILD_SHARED)
+            #define YUVV_API __declspec(dllexport)
+        #elif defined(YUVV_USE_SHARED)
+            #define YUVV_API __declspec(dllimport)
+        #else
+            #define YUVV_API
+        #endif
+    #else
+        #if defined(YUVV_BUILD_SHARED) && (defined(__GNUC__) || defined(__clang__))
+            #define YUVV_API __attribute__((visibility("default")))
+        #else
+            #define YUVV_API
+        #endif
+    #endif
+#endif
 
-enum class YuvFormat {
-    I420, // YUV420p planar: Y + U + V
-    NV12, // Y + interleaved UV
-    NV21, // Y + interleaved VU
-    YUY2, // packed 4:2:2 (YUYV)
-    UYVY  // packed 4:2:2 (UYVY)
+namespace yuvv {
+
+enum class YuvFormat : uint8_t {
+    I420 = 0,
+    NV12 = 1,
+    NV21 = 2,
+    YUY2 = 3,
+    UYVY = 4,
 };
 
-struct YUVV_API ViewerConfig {
+struct ViewerConfig {
     std::string file;
     int w = 0;
     int h = 0;
-    YuvFormat fmt = YuvFormat::NV12;
-
+    YuvFormat fmt = YuvFormat::I420;
     double fps = 30.0;
     bool loop = true;
-
     int64_t start_frame = 0;
-    int64_t max_frames = -1; // -1 => all
+    int64_t max_frames = -1;
     std::string window_name = "YUV Viewer";
     bool overlay_info = true;
 };
 
-YUVV_API void PrintUsage(const char* argv0);
-YUVV_API bool ParseArgs(int argc, char** argv, ViewerConfig& cfg);
+struct BgrFrameView {
+    int w = 0;
+    int h = 0;
+    int channels = 3;
+    int stride_bytes = 0;
+    const uint8_t* data = nullptr;
+};
 
-// Optional hook: called after preview is shown (so “before processing” preview is guaranteed).
-using PostPreviewCallback = std::function<void(const cv::Mat& bgr, int64_t frame_idx)>;
+using PostPreviewCallback = std::function<void(const BgrFrameView& frame, int64_t frame_idx)>;
 
 class YUVV_API YuvViewer final {
   public:
     explicit YuvViewer(ViewerConfig cfg);
+    ~YuvViewer();
 
-    // Run interactive viewer loop. Returns exit code.
+    YuvViewer(YuvViewer&&) noexcept;
+    YuvViewer& operator=(YuvViewer&&) noexcept;
+
+    YuvViewer(const YuvViewer&) = delete;
+    YuvViewer& operator=(const YuvViewer&) = delete;
+
     int run();
-
-    void set_post_preview_callback(PostPreviewCallback cb) {
-        post_preview_cb_ = std::move(cb);
-    }
-
-    int64_t total_frames() const {
-        return total_frames_;
-    }
-
-    static bool parse_format_str(const std::string& s, YuvFormat& out);
+    void set_post_preview_callback(PostPreviewCallback cb);
+    int64_t total_frames() const;
 
   private:
-    static size_t frame_size_bytes(int w, int h, YuvFormat fmt);
-    static int cvt_code(YuvFormat fmt);
-
-    bool open_file();
-    bool seek_to_frame(int64_t frame_idx);
-    bool read_frame_bgr(int64_t frame_idx, cv::Mat& out_bgr);
-
-    void handle_key(int key);
-    void restart();
-    void save_last_frame_png();
-
-  private:
-    ViewerConfig cfg_;
-
-    std::ifstream* file_ = nullptr; // managed manually to keep header light; allocated in cpp
-    size_t frame_bytes_ = 0;
-    int64_t total_frames_ = 0;
-
-    std::vector<uint8_t> buf_;
-
-    bool paused_ = false;
-    bool step_once_ = false;
-
-    int64_t frame_idx_ = 0;
-    int64_t shown_ = 0;
-
-    cv::Mat last_bgr_;
-    int last_key_delay_ms_ = 1;
-
-    PostPreviewCallback post_preview_cb_;
+    class Impl;
+    std::unique_ptr<Impl> impl_;
 };
 
-} // namespace yuv
+} // namespace yuvv
