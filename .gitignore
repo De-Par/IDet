@@ -2,7 +2,6 @@
 .vscode
 .idea
 .venv
-.DS_Store
 
 # Build dirs
 build*/

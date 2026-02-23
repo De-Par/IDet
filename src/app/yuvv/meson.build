@@ -7,7 +7,7 @@ yuvv_app_deps = [
     yuvv_dep,
 ]
 
-yuvv_app = executable(
+executable(
     'yuv_viewer',
     yuvv_app_source,
     cpp_args     : cxx_args,

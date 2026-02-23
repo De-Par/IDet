@@ -130,7 +130,9 @@ fi
 args+=(--num-processes "${nprocs}")
 
 # Extra user args
-args+=("${EXTRA_ARGS[@]-}")
+if ((${#EXTRA_ARGS[@]} > 0)); then
+    args+=("${EXTRA_ARGS[@]}")
+fi
 
 log "[INFO] Running: ${MESON_BIN} ${args[*]}"
 exec "${MESON_BIN}" "${args[@]}"
