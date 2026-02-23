@@ -1,0 +1,14 @@
+[wrap-git]
+directory = gtest
+url = https://github.com/google/googletest.git
+patch_directory = gtest
+depth = 1
+
+# v1.17.0
+revision = 52eb8108c5bdec04579160ae17225d66034bd723
+
+[provide]
+gtest = gtest_dep
+gtest_main = gtest_main_dep
+gmock = gmock_dep
+gmock_main = gmock_main_dep

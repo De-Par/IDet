@@ -1,23 +1,23 @@
-option('ort_build_tests', 
-    type: 'boolean', 
+option('ort_build_tests',
+    type: 'boolean',
     value: false,
     description: 'Build ONNX Runtime unit tests'
 )
 
-option('ort_enable_acl', 
-    type: 'boolean', 
+option('ort_enable_acl',
+    type: 'boolean',
     value: false,
     description: 'Enable ACL EP (ARM Compute Library) if available'
 )
 
-option('ort_enable_xnnpack', 
-    type: 'boolean', 
+option('ort_enable_xnnpack',
+    type: 'boolean',
     value: false,
     description: 'Enable XNNPACK EP if available'
 )
 
-option('ort_cmake_extra', 
-    type: 'string', 
+option('ort_cmake_extra',
+    type: 'string',
     value: '',
     description: 'Extra CMake -D... defines (semicolon-separated), e.g. "onnxruntime_ENABLE_LTO=OFF;onnxruntime_MINIMAL_BUILD=OFF"'
 )

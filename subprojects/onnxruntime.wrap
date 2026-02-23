@@ -1,12 +1,19 @@
 [wrap-git]
-directory=onnxruntime
-url=https://github.com/microsoft/onnxruntime.git
-patch_directory=onnxruntime
-clone-recursive=true
-depth=1
+directory = onnxruntime
+url = https://github.com/microsoft/onnxruntime.git
+patch_directory = onnxruntime
+clone-recursive = true
+depth = 1
+
+# v1.21.0 (e0b66cad282043d4377cea5269083f17771b6dfc) - v1.23.2 (a83fc4d58cb48eb68890dd689f94f28288cf2278) requires CMake 3.28
+# v1.16.0 (e7a0495a874251e9747b2ce0683e0580282c54df) - v1.20.2 (8608bf02f21774be0388d2aa3a9f886d009d0b4c) requires CMake 3.26
+# v1.15.0 (638146b79ea52598ece514704d3f592c10fab2f1) - v1.15.1 (baeece44ba075009c6bfe95891a8c1b3d4571cb3) requires CMake 3.25
+# v1.14.0 (6ccaeddefa65ccac402a47fa4d9cad8229794bb2) - v1.14.1 (c57cf374b67f72575546d7b4c69a1af4972e2b54) requires CMake 3.24
+# v1.9.0  (4daa14bc74b5378d5fcb0d6de063a9fa8bd42eac) - v1.13.1 (b353e0b41d588605958b03f9a223d10a2fbeb514) requires CMake 3.18
+# v1.0.0  (b783805f957c88f97b2b4398e2ace138fbdf831b) - v1.8.2  (430e80e7b6e5e6222b2d90ca5e43609d62082722) requires CMake 3.13
 
 # v1.23.2
-revision=a83fc4d58cb48eb68890dd689f94f28288cf2278  
+revision = a83fc4d58cb48eb68890dd689f94f28288cf2278
 
 [provide]
-onnxruntime=onnxruntime_dep
+onnxruntime = onnxruntime_dep
