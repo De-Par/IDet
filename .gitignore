@@ -73,6 +73,9 @@ compile_commands.json
 !docs/**/*
 !assets/**/*
 
+# MacOS Finder metadata 
+**/.DS_Store
+
 # Temp files / logs
 reports
 profiling
