@@ -1,0 +1,14 @@
+Checks: >
+  -*,
+  clang-analyzer-*,
+  -clang-analyzer-alpha.*,
+  -clang-analyzer-osx.*,
+  -clang-analyzer-core.uninitialized.Assign
+
+WarningsAsErrors: >
+  clang-analyzer-*,
+  -clang-analyzer-core.uninitialized.Assign
+
+HeaderFilterRegex: '^(.*/)?(src|include)/'
+SystemHeaders: false
+FormatStyle: none

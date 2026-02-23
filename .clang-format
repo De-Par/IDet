@@ -1,17 +1,17 @@
-BasedOnStyle: LLVM        # You can switch to: LLVM / Google / Chromium / Mozilla / WebKit / Microsoft
-Language: Cpp               # Default language — C++
+BasedOnStyle: LLVM             # You can switch to: LLVM / Google / Chromium / Mozilla / WebKit / Microsoft
+Language: Cpp                  # Default language — C++
 
-IndentWidth: 4              # 4 spaces for indentation
-TabWidth: 4                 # Visual width of a tab = 4
-UseTab: Never               # Use spaces instead of tabs for indentation
+IndentWidth: 4                 # 4 spaces for indentation
+TabWidth: 4                    # Visual width of a tab = 4
+UseTab: Never                  # Use spaces instead of tabs for indentation
 
-ColumnLimit: 120            # Max line length (0 = no limit)
+ColumnLimit: 120               # Max line length (0 = no limit)
 
 # Pointer/reference alignment
-PointerAlignment: Left      # "int* ptr" instead of "int *ptr"
+PointerAlignment: Left         # "int* ptr" instead of "int *ptr"
 
 # Brace wrapping
-BreakBeforeBraces: Attach   # "if () {" on the same line
+BreakBeforeBraces: Attach      # "if () {" on the same line
 
 # Short constructs in a single line
 AllowShortIfStatementsOnASingleLine: true
@@ -19,18 +19,18 @@ AllowShortLoopsOnASingleLine: false
 AllowShortFunctionsOnASingleLine: Empty  # Only empty functions on a single line
 
 # Include handling
-SortIncludes: true          # Sort #include directives
-IncludeBlocks: Regroup      # Regroup separated blocks of includes
+SortIncludes: true                       # Sort #include directives
+IncludeBlocks: Regroup                   # Regroup separated blocks of includes
 
 # Spaces around operators and parentheses
-SpaceBeforeParens: ControlStatements    # Space for if/for/while: if (x)
+SpaceBeforeParens: ControlStatements     # Space for if/for/while: if (x)
 SpacesInParentheses: false
 SpaceAfterCStyleCast: false
 
 # Indenting preprocessor directives
 IndentPPDirectives: BeforeHash
 
-# If you want a multi-section config:
+# Example for multi-section config:
 # # For C++
 # ---
 # Language: Cpp

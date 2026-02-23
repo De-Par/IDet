@@ -5,8 +5,7 @@
 .DS_Store
 
 # Build dirs
-build
-builddir
+build*/
 
 # Prerequisites
 *.d
@@ -53,10 +52,11 @@ meson-private
 # Meson Files
 meson_benchmark_setup.dat
 meson_test_setup.dat
+meson_native*.ini
 
 # C++ specific
-sanitycheckcpp.cc     
-sanitycheckcpp.exe   
+sanitycheckcpp.cc
+sanitycheckcpp.exe
 
 # Ninja
 build.ninja
@@ -66,12 +66,16 @@ build.ninja
 # Misc
 compile_commands.json
 
-# Output images
+# Image artefacts
 *.png
 *.jpg
 *.jpeg
-!assets/**/*
 !docs/**/*
+!assets/**/*
 
-# Log files
-*.log
+# Temp files / logs
+reports
+profiling
+
+# Local env
+toolchain/env/local.env
