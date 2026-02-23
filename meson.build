@@ -1,5 +1,5 @@
 project('IDet', ['c', 'cpp'],
-    version: '2.0',
+    version: '1.0.0',
     default_options: [
         'cpp_std=c++17',
         'warning_level=2',
