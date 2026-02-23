@@ -76,7 +76,7 @@ path_exists "${IMG}"
 
 log "----------------------------------------------"
 log "[INFO] Run text (${MODE})"
-log "[INFO] profile   : ${TC_PROFILE}"
+log "[INFO] profile    : ${TC_PROFILE}"
 log "[INFO] build dir : ${BUILD_DIR}"
 log "[INFO] app       : ${APP}"
 log "[INFO] model     : ${MODEL}"

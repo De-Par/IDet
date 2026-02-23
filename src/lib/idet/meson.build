@@ -143,12 +143,27 @@ endif
 idet_internal_dep = disabler()
 
 if build_tests 
+    # Test targets need external compile/include flags from deps, but linking is already
+    # provided via `link_with` target and its dependency closure. Keep compile-only deps
+    # to avoid duplicate link items like `-lonnxruntime`
+    idet_internal_compile_deps = [
+        opencv_dep.partial_dependency(
+            compile_args: true,
+            includes: true,
+        ),
+        ort_dep.partial_dependency(
+            compile_args: true,
+            includes: true,
+        ),
+    ]
+
     # If we already have a static idet library, use it for tests
     if idet_libtype in ['static', 'both']
         idet_internal_dep = declare_dependency(
             link_with           : idet_lib_static,
             include_directories : idet_lib_inc,   # public + private (tests need internal headers)
-            dependencies        : idet_lib_deps,  # so tests get OpenCV/ORT include+libs
+            dependencies        : idet_internal_compile_deps,
+            sources             : ort_link_depends,
             compile_args        : ['-DIDET_TESTING_INTERNAL'],
         )
     else
@@ -167,7 +182,8 @@ if build_tests
         idet_internal_dep = declare_dependency(
             link_with           : idet_test_static,
             include_directories : idet_lib_inc,
-            dependencies        : idet_lib_deps,
+            dependencies        : idet_internal_compile_deps,
+            sources             : ort_link_depends,
             compile_args        : ['-DIDET_TESTING_INTERNAL'],
         )
     endif

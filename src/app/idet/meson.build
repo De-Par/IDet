@@ -20,7 +20,7 @@ if idet_libtype == 'static' or (idet_libtype == 'both' and idet_exe_link == 'sta
     idet_app_install_rpath = install_rpath
 endif
 
-idet_app = executable(
+executable(
     'idet_app',
     idet_app_source,
     include_directories : [],

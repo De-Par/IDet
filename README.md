@@ -153,7 +153,7 @@ The toolchain is designed to be **sourced once per terminal session**. It sets u
 1) List available profiles:
     ```bash 
     source toolchain/scripts/tc.sh
-    tc_print_profiles
+    tc_list
     ```
 
 2) Choose the one you like:
