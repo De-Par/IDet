@@ -8,20 +8,20 @@ if [[ -z "${BASH_VERSION:-}" ]]; then
 fi
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-    _act_err "Must be sourced: source toolchain/scripts/activate.sh [profile]"
+    _act_err "Must be sourced: source toolchain/activate.sh [profile]"
     return 1 2>/dev/null || exit 1
 fi
 
 _act_usage() {
     cat <<'EOF'
 Usage:
-    source toolchain/scripts/activate.sh [profile]
-    source toolchain/scripts/activate.sh [-h|--help|help]
+    source toolchain/activate.sh [profile]
+    source toolchain/activate.sh [-h|--help|help]
 
 Description:
     Activates an IDet toolchain profile in the current shell by exporting
     environment variables (BUILD_DIR, MESON_NATIVE_FILE, tool binaries, etc.)
-    loaded via toolchain/scripts/tc.sh.
+    loaded via toolchain/tc.sh.
 
 Behavior:
     - If [profile] is omitted, uses TC_PROFILE from:
@@ -30,9 +30,9 @@ Behavior:
         modify the current environment.
 
 Examples:
-    source toolchain/scripts/activate.sh gcc-perf
-    source toolchain/scripts/activate.sh            # uses default TC_PROFILE
-    source toolchain/scripts/activate.sh -h
+    source toolchain/activate.sh gcc-perf
+    source toolchain/activate.sh            # uses default TC_PROFILE
+    source toolchain/activate.sh -h
 
 Tip:
     After activation you can run build/test tools without passing profile,
@@ -46,10 +46,10 @@ case "${1:-}" in
 esac
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-ROOT_DIR="$(cd -- "${SCRIPT_DIR}/../.." && pwd -P)"
+ROOT_DIR="$(cd -- "${SCRIPT_DIR}/.." && pwd -P)"
 cd -- "${ROOT_DIR}"
 
-TC_FILE="${ROOT_DIR}/toolchain/scripts/tc.sh"
+TC_FILE="${ROOT_DIR}/toolchain/tc.sh"
 
 source "${TC_FILE}" || {
     _act_err "Failed to source ${TC_FILE}"

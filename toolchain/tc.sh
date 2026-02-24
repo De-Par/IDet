@@ -7,7 +7,7 @@ if [[ -z "${BASH_VERSION:-}" ]]; then
 fi
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-    echo "[TC][ERROR] tc.sh must be sourced: source toolchain/scripts/tc.sh" >&2
+    echo "[TC][ERROR] tc.sh must be sourced: source toolchain/tc.sh" >&2
     exit 1
 fi
 
@@ -41,7 +41,7 @@ _tc_trim() {
 _tc_get_root_dir() {
     local script_dir
     script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)" || return 1
-    (cd "${script_dir}/../.." && pwd -P) || return 1
+    (cd "${script_dir}/.." && pwd -P) || return 1
 }
 
 _tc_source_if_exists() {

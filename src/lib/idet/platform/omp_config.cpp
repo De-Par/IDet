@@ -94,7 +94,7 @@ static int effective_cpu_count_from_affinity() {
 
 static inline void dump_env_kv(const char* key, const char* label = nullptr) {
     const char* v = safe_getenv(key);
-    std::cout << "  " << (label ? label : key) << " = " << (v ? v : "<not set>") << "\n";
+    if (v) std::cout << (label ? label : key) << " = " << v << "\n";
 }
 
 /**
@@ -116,15 +116,15 @@ void dump_openmp_runtime() {
 #if !defined(_OPENMP)
     std::cout << "\n[OMP] OpenMP is not enabled in this build (_OPENMP not defined)\n" << std::flush;
 #else
-    std::cout << "\n[OMP] OpenMP Runtime\n";
-    std::cout << "  _OPENMP = " << std::to_string(_OPENMP) << "\n";
+    std::cout << "=== OpenMP Runtime ===" << "\n";
+    std::cout << "_OPENMP = " << std::to_string(_OPENMP) << "\n";
 
     // Best-effort: resolve which shared library provides omp_* symbols.
     Dl_info info{};
     if (dladdr((void*)&omp_get_max_threads, &info) && info.dli_fname) {
-        std::cout << "  runtime_so = " << info.dli_fname << "\n";
+        std::cout << "runtime_so = " << info.dli_fname << "\n";
     } else {
-        std::cout << "  runtime_so = <unknown>\n";
+        std::cout << "runtime_so = <unknown>\n";
     }
 
     // Standard OpenMP environment knobs.
@@ -138,13 +138,13 @@ void dump_openmp_runtime() {
     dump_env_kv("OMP_THREAD_LIMIT");
 
     // Optional: query runtime API (may trigger initialization in some scenarios).
-    std::cout << "  omp_get_max_threads = " << omp_get_max_threads() << "\n";
-    std::cout << "  omp_get_num_procs = " << omp_get_num_procs() << "\n";
-    std::cout << "  omp_get_dynamic = " << (omp_get_dynamic() ? "true" : "false") << "\n";
+    std::cout << "omp_get_max_threads = " << omp_get_max_threads() << "\n";
+    std::cout << "omp_get_num_procs = " << omp_get_num_procs() << "\n";
+    std::cout << "omp_get_dynamic = " << (omp_get_dynamic() ? "true" : "false") << "\n";
     #if _OPENMP >= 200805
-    std::cout << "  omp_get_max_active_levels = " << omp_get_max_active_levels() << "\n";
+    std::cout << "omp_get_max_active_levels = " << omp_get_max_active_levels() << "\n";
     #endif
-    std::cout << "\n" << std::flush;
+    std::cout << std::flush;
 #endif
 }
 

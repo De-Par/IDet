@@ -24,7 +24,7 @@ Usage:
     ./scripts/format_code.sh [--check|--help]
 
 Examples:
-    source toolchain/scripts/activate.sh 
+    source toolchain/activate.sh 
     ./scripts/format_code.sh --check
     ./scripts/format_code.sh 
 EOF
@@ -44,7 +44,7 @@ done
 # ------------------------- require activated env -------------------------
 
 if [[ "${TC_ACTIVE:-0}" != "1" ]]; then
-    die "Toolchain environment is not active. Run: source toolchain/scripts/activate.sh <profile>"
+    die "Toolchain environment is not active. Run: source toolchain/activate.sh <profile>"
 fi
 
 CLANG_FORMAT_BIN="${CLANG_FORMAT:-}"
@@ -99,8 +99,9 @@ if ((${#FILES[@]} == 0)); then
     exit 0
 fi
 
-log "[INFO] Only check: ${CHECK_ONLY}"
-log "[INFO] Files found: ${#FILES[@]}"
+[[ "${CHECK_ONLY:-0}" == "1" || "${CHECK_ONLY:-}" == "true" ]] && \
+    log "[INFO] Only check  : true" || log "[INFO] Only check  : false"
+log "[INFO] Files found : ${#FILES[@]}"
 
 # ------------------------- fast check mode (if supported) -------------------------
 # If clang-format supports --dry-run and -Werror, do a fast check and exit early.

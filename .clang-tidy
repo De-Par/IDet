@@ -9,6 +9,6 @@ WarningsAsErrors: >
   clang-analyzer-*,
   -clang-analyzer-core.uninitialized.Assign
 
-HeaderFilterRegex: '^(.*/)?(src|include)/'
+HeaderFilterRegex: '^(?!.*(/|\\)subprojects(/|\\)).*(^|/)(src|include)/'
 SystemHeaders: false
 FormatStyle: none

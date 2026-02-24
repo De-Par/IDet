@@ -23,7 +23,7 @@ Usage:
     ./scripts/run_tests.sh [--no-rebuild] [--suite NAME] [--repeat N] [--gdb] [--] [extra meson test args...]
 
 Examples:
-    source toolchain/scripts/activate.sh 
+    source toolchain/activate.sh 
     ./scripts/run_tests.sh
     ./scripts/run_tests.sh --suite unit
 EOF
@@ -73,7 +73,7 @@ done
 
 if [[ "${TC_ACTIVE:-0}" != "1" ]]; then
     warn "No active toolchain detected (TC_ACTIVE!=1)."
-    warn "Recommended: source toolchain/scripts/activate.sh <profile>"
+    warn "Recommended: source toolchain/activate.sh <profile>"
 fi
 
 BUILD_DIR="${BUILD_DIR:-build}"

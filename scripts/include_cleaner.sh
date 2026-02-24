@@ -24,12 +24,12 @@ Usage:
     ./scripts/include_cleaner.sh [--fix] [--misinc] [--] [paths...]
 
 Options:
-    --fix        apply fixes in-place
+    --fix         apply fixes in-place
     --misinc     enable MissingIncludes mode 
     -h,--help    show this help
 
 Examples:
-    source toolchain/scripts/activate.sh
+    source toolchain/activate.sh
     ./scripts/include_cleaner.sh --fix -- src/app
 EOF
 }
@@ -60,13 +60,13 @@ fi
 
 # ------------------------- load environment -------------------------
 
-TC_SH="${ROOT_DIR}/toolchain/scripts/tc.sh"
-[[ -f "${TC_SH}" ]] || die "Missing toolchain loader: toolchain/scripts/tc.sh"
+TC_SH="${ROOT_DIR}/toolchain/tc.sh"
+[[ -f "${TC_SH}" ]] || die "Missing toolchain loader: toolchain/tc.sh"
 source "${TC_SH}"
 
 # Load environment from the currently active profile (if available)
 if [[ "${TC_ACTIVE:-0}" != "1" ]]; then
-    die "Toolchain environment is not active. Please run: source toolchain/scripts/activate.sh <profile>"
+    die "Toolchain environment is not active. Please run: source toolchain/activate.sh <profile>"
 fi
 
 # Apply CLI overrides
