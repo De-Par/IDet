@@ -38,7 +38,7 @@ Examples:
     ./scripts/build.sh force -- -Donnxruntime_system=true
 
 Typical workflow:
-    source ./toolchain/scripts/activate.sh
+    source toolchain/activate.sh
     ./scripts/build.sh force
 EOF
 }
@@ -75,7 +75,7 @@ fi
 
 if [[ "${TC_ACTIVE:-0}" != "1" ]]; then
     warn "No active toolchain detected (TC_ACTIVE!=1)."
-    warn "Recommended: source toolchain/scripts/activate.sh <profile>"
+    warn "Recommended: source toolchain/activate.sh <profile>"
 fi
 
 BUILD_DIR="${BUILD_DIR:-build}"
@@ -221,13 +221,25 @@ meson_setup_or_reconfigure() {
     local -a native_args=("${MESON_NATIVE_ARGS[@]-}")
     local -a user_args=("${MESON_USER_ARGS[@]-}")
 
+    local -a cmd=()
     if [[ ! -d "${BUILD_DIR}" ]]; then
         log "[INFO] meson setup: '${BUILD_DIR}'"
-        "${MESON_BIN}" setup "${BUILD_DIR}" "${native_args[@]}" "${user_args[@]}"
+        cmd+=("${MESON_BIN}" setup "${BUILD_DIR}")
     else
         log "[INFO] meson reconfigure: '${BUILD_DIR}'"
-        "${MESON_BIN}" setup --reconfigure "${BUILD_DIR}" "${native_args[@]}" "${user_args[@]}"
+        cmd+=("${MESON_BIN}" setup --reconfigure "${BUILD_DIR}")
     fi
+
+    # Append args but skip empty strings 
+    local a
+    for a in "${native_args[@]}"; do
+        [[ -n "${a}" ]] && cmd+=("${a}")
+    done
+    for a in "${user_args[@]}"; do
+        [[ -n "${a}" ]] && cmd+=("${a}")
+    done
+
+    "${cmd[@]}"
 }
 
 meson_build() {

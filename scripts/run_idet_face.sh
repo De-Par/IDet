@@ -11,7 +11,7 @@ die() { printf '%s\n' "[ERROR] $*" >&2; exit 1; }
 
 require_tc_active() {
     if [[ "${TC_ACTIVE:-0}" != "1" ]]; then
-        die "Toolchain env is not active. Run: source toolchain/scripts/activate.sh <profile>"
+        die "Toolchain env is not active. Run: source toolchain/activate.sh <profile>"
     fi
     [[ -n "${TC_PROFILE:-}" ]] || die "TC_PROFILE is empty (activate.sh didn't export it?)"
     [[ -n "${BUILD_DIR:-}" ]] || die "BUILD_DIR is empty (activate.sh didn't export it?)"
@@ -31,7 +31,7 @@ Usage:
     ./scripts/run_idet_face.sh [tile|t|single|s] [--] [extra idet_app args...]
 
 Example:
-    source toolchain/scripts/activate.sh
+    source toolchain/activate.sh
     ./scripts/run_idet_face.sh
     ./scripts/run_idet_face.sh tile
 EOF

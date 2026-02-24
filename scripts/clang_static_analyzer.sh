@@ -26,7 +26,7 @@ Usage:
     ./scripts/clang_static_analyzer.sh [soft|hard]
 
 Examples:
-    source toolchain/scripts/activate.sh 
+    source toolchain/activate.sh 
     ./scripts/clang_static_analyzer.sh soft
     ./scripts/clang_static_analyzer.sh hard
 EOF
@@ -44,7 +44,7 @@ esac
 # ------------------------- require activated env -------------------------
 
 if [[ "${TC_ACTIVE:-0}" != "1" ]]; then
-    die "Toolchain environment is not active. Run: source toolchain/scripts/activate.sh <profile>"
+    die "Toolchain environment is not active. Run: source toolchain/activate.sh <profile>"
 fi
 
 # ------------------------- helpers -------------------------
