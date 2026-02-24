@@ -1,0 +1,8 @@
+title: IDet Documentation
+description: User and API docs for IDet
+theme: just-the-docs
+color_scheme: light
+search_enabled: true
+nav_sort: case_insensitive
+aux_links:
+  Repository: https://github.com/your-org/your-repo

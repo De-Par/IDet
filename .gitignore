@@ -78,6 +78,8 @@ compile_commands.json
 # Temp files / logs
 reports
 profiling
+docs/api
+docs/site
 
 # Local env
 toolchain/env/local.env
