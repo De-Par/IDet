@@ -218,7 +218,7 @@ endif
 indicators_dep = subproject('indicators').get_variable('indicators_dep')
 
 # --- Clipper2 (wrap) ---
-clipper2_dep = subproject('clipper2').get_variable('clipper2_dep')
+#clipper2_dep = subproject('clipper2').get_variable('clipper2_dep')
 
 # --- Stb (wrap) ---
 stb_dep = subproject('stb').get_variable('stb_dep')

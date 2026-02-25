@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+
 set -euo pipefail
 
 # ------------------------- paths -------------------------
@@ -16,23 +17,18 @@ die()  { printf '%s\n' "[ERROR] $*" >&2; exit 1; }
 need_cmd() { command -v -- "$1" >/dev/null 2>&1 || die "Command '$1' not found in PATH"; }
 
 usage() {
-    cat <<'EOF'
+    cat <<EOF
 Clang Static Analyzer with two modes:
-    - soft      Run run-clang-tidy over first-party code (src/include only)
-    - hard      Run scan-build (HTML report)
+    - soft      Run clang-tidy in a lightweight mode to analyze source code
+    - hard      Run scan-build for a more in-depth static analysis and generate HTML reports 
 
 Usage:
     ./scripts/clang_static_analyzer.sh [soft|hard]
 
-Env knobs:
-    BUILD_DIR (default: build)
-    JOBS (0/empty -> auto)
-    CLANG_TIDY, RUN_CLANG_TIDY, SCAN_BUILD, MESON, NINJA
-
-    CSA_HEADER_FILTER (default: ^(.*/)?(src|include)/)
-    CSA_LINE_FILTER   (default: [{"name":".*/src/.*"},{"name":".*/include/.*"}])
-
-    CSA_EXTRA_ARGS    (extra args forwarded to run-clang-tidy)
+Examples:
+    source toolchain/activate.sh 
+    ./scripts/clang_static_analyzer.sh soft
+    ./scripts/clang_static_analyzer.sh hard
 EOF
 }
 
@@ -63,11 +59,12 @@ os_nproc() {
     fi
 }
 
-# Remove any diagnostics lines that reference subprojects/
-# (also removes "included from .../subprojects/..." cascades)
-filter_out_subprojects() {
-    # match both /subprojects/ and \subprojects\ (in case of weird paths)
-    grep -vE '(^|[[:space:]])([^[:space:]]*/)?subprojects(/|\\)' || true
+mktemp_dir() {
+    if mktemp -d >/dev/null 2>&1; then
+        mktemp -d
+    else
+        mktemp -d -t idet_tmp
+    fi
 }
 
 # ------------------------- resolve env -------------------------
@@ -86,38 +83,35 @@ if [[ -z "${JOBS_EFF}" || "${JOBS_EFF}" == "0" ]]; then
 fi
 
 need_cmd "${MESON_BIN}"
-need_cmd "${NINJA_BIN}"
 need_cmd "${CLANG_TIDY_BIN}"
 need_cmd "${RUN_TIDY_BIN}"
 
 if [[ "${MODE}" == "hard" ]]; then
     need_cmd "${SCAN_BUILD_BIN}"
+    need_cmd "${NINJA_BIN}"
 fi
 
 # ------------------------- ensure build dir + compdb -------------------------
 
 ensure_compdb() {
     local bdir="$1"
-    [[ -d "${bdir}" ]] || die "Build dir '${bdir}' not found (run ./scripts/build.sh first)"
-
     if [[ -f "${bdir}/compile_commands.json" ]]; then
         return 0
     fi
-
-    if [[ -f "${bdir}/build.ninja" ]]; then
+    # If build dir exists and has build.ninja, generate compdb.
+    if [[ -d "${bdir}" && -f "${bdir}/build.ninja" ]]; then
         log "[INFO] Generating compilation database via ninja: ${bdir}/compile_commands.json"
         "${NINJA_BIN}" -C "${bdir}" -t compdb > "${bdir}/compile_commands.json"
     fi
-
     [[ -f "${bdir}/compile_commands.json" ]] || die "Missing '${bdir}/compile_commands.json' (build first)"
 }
 
+[[ -d "${BUILD_DIR}" ]] || die "Build dir '${BUILD_DIR}' not found (run ./scripts/build.sh first)"
 ensure_compdb "${BUILD_DIR}"
 
-# ------------------------- sources list (first-party only) -------------------------
+# ------------------------- sources list -------------------------
 
-declare -a CPP_FILES=()
-
+CPP_FILES=()
 if command -v git >/dev/null 2>&1 && git -C "${ROOT_DIR}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     while IFS= read -r f; do
         [[ -n "$f" ]] && CPP_FILES+=("$f")
@@ -130,21 +124,20 @@ if ((${#CPP_FILES[@]} == 0)); then
     done < <(find src -type f \( -name '*.cpp' -o -name '*.cc' -o -name '*.cxx' \) 2>/dev/null | sort || true)
 fi
 
-# ------------------------- filters (src/include only) -------------------------
-
-HEADER_FILTER="${CSA_HEADER_FILTER:-^(.*/)?(src|include)/}"
-LINE_FILTER="${CSA_LINE_FILTER:-}"
-if [[ -z "${LINE_FILTER}" ]]; then
-    LINE_FILTER='[{"name":".*/src/.*"},{"name":".*/include/.*"}]'
-fi
-
 # ------------------------- extra args -------------------------
 
-declare -a extra_args=()
+extra_args=()
+# CLANG_INCLUDE_DIR can be ':' separated
+if [[ -n "${CLANG_INCLUDE_DIR:-}" ]]; then
+    IFS=':' read -r -a _dirs <<< "${CLANG_INCLUDE_DIR}"
+    for d in "${_dirs[@]}"; do
+        [[ -n "${d}" ]] || continue
+        extra_args+=("-extra-arg=-isystem${d}")
+    done
+fi
 
-# Optional user extra args (space-separated tokens)
+# Optional user extra args
 if [[ -n "${CSA_EXTRA_ARGS:-}" ]]; then
-    # shellcheck disable=SC2206
     extra_args+=( ${CSA_EXTRA_ARGS} )
 fi
 
@@ -152,20 +145,21 @@ fi
 
 print_effective() {
     log "----------------------------------------------"
-    log "[CSA] MODE          : ${MODE}"
-    log "[CSA] BUILD_DIR     : ${BUILD_DIR}"
-    log "[CSA] JOBS          : ${JOBS_EFF}"
-    log "[CSA] MESON         : ${MESON_BIN}"
-    log "[CSA] NINJA         : ${NINJA_BIN}"
-    log "[CSA] CLANG_TIDY    : ${CLANG_TIDY_BIN}"
-    log "[CSA] RUN_CLANG_TIDY: ${RUN_TIDY_BIN}"
+    log "[CSA] MODE           : ${MODE}"
+    log "[CSA] TC_PROFILE     : ${TC_PROFILE:-<none>}"
+    log "[CSA] BUILD_DIR      : ${BUILD_DIR}"
+    log "[CSA] JOBS           : ${JOBS_EFF}"
+    log "[CSA] MESON          : ${MESON_BIN}"
+    log "[CSA] CLANG_TIDY     : ${CLANG_TIDY_BIN}"
+    log "[CSA] RUN_CLANG_TIDY : ${RUN_TIDY_BIN}"
     if [[ "${MODE}" == "hard" ]]; then
-        log "[CSA] SCAN_BUILD    : ${SCAN_BUILD_BIN}"
+        log "[CSA] SCAN_BUILD     : ${SCAN_BUILD_BIN}"
     fi
-    log "[CSA] HEADER_FILTER : ${HEADER_FILTER}"
-    log "[CSA] LINE_FILTER   : ${LINE_FILTER}"
+    if [[ -n "${CLANG_INCLUDE_DIR:-}" ]]; then
+        log "[CSA] INCLUDE_DIRS   : ${CLANG_INCLUDE_DIR}"
+    fi
     if [[ -n "${CSA_EXTRA_ARGS:-}" ]]; then
-        log "[CSA] EXTRA_ARGS    : ${CSA_EXTRA_ARGS}"
+        log "[CSA] EXTRA_ARGS     : ${CSA_EXTRA_ARGS}"
     fi
     log "----------------------------------------------"
 }
@@ -178,42 +172,13 @@ case "${MODE}" in
         print_effective
         log "[INFO] Files: ${#CPP_FILES[@]}"
 
-        # Стримим вывод, вырезаем subprojects/, и считаем "error:" только в first-party выводе
-        set +e
         "${RUN_TIDY_BIN}" \
             -p "${BUILD_DIR}" \
             -clang-tidy-binary "${CLANG_TIDY_BIN}" \
             -use-color \
             -j "${JOBS_EFF}" \
-            -header-filter="${HEADER_FILTER}" \
-            -line-filter="${LINE_FILTER}" \
             "${extra_args[@]-}" \
-            "${CPP_FILES[@]}" \
-            2>&1 | awk '
-                # полностью игнорируем любые строки, где фигурирует subprojects/
-                /(^|[[:space:]])([^[:space:]]*\/)?subprojects\// { next }
-
-                { print }
-
-                # если в first-party выводе встретили error: -> отметим ошибку
-                /(^|[[:space:]])error:/ { err=1 }
-
-                END { exit (err ? 1 : 0) }
-            '
-        awk_rc=$?
-        run_rc=${PIPESTATUS[0]}
-        set -e
-
-        if [[ "${awk_rc}" -ne 0 ]]; then
-            log "[INFO] clang-tidy: ❌ errors found"
-            exit 1
-        fi
-
-        if [[ "${run_rc}" -ne 0 ]]; then
-            warn "run-clang-tidy exited with rc=${run_rc}, but no first-party errors after subprojects filter"
-        fi
-
-        log "[INFO] clang-tidy: ✅ no errors"
+            "${CPP_FILES[@]}"
         ;;
 
     hard)
