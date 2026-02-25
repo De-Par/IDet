@@ -62,6 +62,9 @@ build.ninja
 .ninja_deps
 .ninja_logs
 
+# Python
+__pycache__/
+
 # Misc
 compile_commands.json
 

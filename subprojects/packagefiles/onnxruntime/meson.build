@@ -61,4 +61,4 @@ onnxruntime_dep = declare_dependency(
 
     # Force the build/install step to happen before anything that uses this dep
     sources: onnxruntime_stamp,
-)
+).as_system('system')

@@ -144,13 +144,17 @@ endif
 # ------------------------------------------------------------------------
 message('Run-time dependencies...')
 
+# We will treat deps headers as system to keep static analysis focused on project code!
+# dependency(...) : add flag `include_type: 'system'`
+# declare_dependency(...) : wrap in `.as_system('system')`
+
 # --- OpenCV (system) ---
-opencv_dep = dependency('opencv4', required: true)
+opencv_dep = dependency('opencv4', required: true, include_type: 'system')
 
 # --- OpenMP (system) ---
 openmp_dep = disabler()
 if use_openmp
-    openmp_base = dependency('openmp', required: false)
+    openmp_base = dependency('openmp', required: false, include_type: 'system')
     if not openmp_base.found()
         error('OpenMP requested but not found. Install OpenMP dev/runtime or disable: -Duse_openmp=false')
     endif
@@ -175,7 +179,7 @@ if use_openmp
             openmp_dep = declare_dependency(
                 dependencies: [openmp_base.partial_dependency(compile_args: true)],
                 link_args: [pinned_libomp],
-            )
+            ).as_system('system')
             message('OpenMP runtime pinned to: ' + pinned_libomp)
         else
             openmp_dep = openmp_base
@@ -189,7 +193,7 @@ endif
 # --- NUMA (system) ---
 numa_dep = disabler()
 if use_numa
-    numa_dep = dependency('numa', required: false)
+    numa_dep = dependency('numa', required: false, include_type: 'system')
     if numa_dep.found()
         add_project_arguments('-DUSE_LIBNUMA', language: 'cpp')
     else
@@ -200,7 +204,7 @@ endif
 # --- Google Tests (system -> subproject fallback) ---
 gtest_dep = disabler()
 if build_tests
-    gtest_dep = dependency('gtest', required: false)
+    gtest_dep = dependency('gtest', required: false, include_type: 'system')
     if not gtest_dep.found()
         warning('GTest not found in system. Falling back to building from subprojects/gtest')
         gtest_dep = subproject('gtest').get_variable('gtest_dep')
@@ -227,11 +231,11 @@ ort_inc = []
 
 # 1) system first (auto + cmake)
 if is_system_ort
-    ort_dep = dependency('onnxruntime', required: false, method: 'pkg-config')
+    ort_dep = dependency('onnxruntime', required: false, method: 'pkg-config', include_type: 'system')
     if ort_dep.found()
         ort_source = 'system (pkg-config)'
     else
-        ort_dep = dependency('onnxruntime', required: false, method: 'cmake')
+        ort_dep = dependency('onnxruntime', required: false, method: 'cmake', include_type: 'system')
         if ort_dep.found()
             ort_source = 'system (cmake package)'
         endif
@@ -262,7 +266,8 @@ if not ort_dep.found()
         ort_dep = declare_dependency(
             dependencies: [ort_lib],
             include_directories: ort_inc,
-        )
+        ).as_system('system')
+
         ort_source = 'manual -> ' + ort_lib_dir
     else
         # 3) fallback: build ORT from subprojects via CMake module
