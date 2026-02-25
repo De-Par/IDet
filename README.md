@@ -86,7 +86,7 @@
 | **pkg-config** | — | Build | 🟢 | Used to discover system dependencies (OpenCV / ORT, etc.) |
 | **OpenCV** | **3.0+** | Runtime | 🟢 | Modules: `core`, `imgproc`, `imgcodecs` |
 | **ONNX Runtime (CPU / MLAS)** | — | Runtime | 🟢 | Can be provided via `system install`, `meson wrap` or `source build` |
-| **CMake** | **≥ 3.18** | Build | 🟡 | Needed **only** if ONNX Runtime is built from sources / via wrap (depends on ORT version) |
+| **CMake** | **≥ 3.11** | Build | 🟡 | Needed **only** if ONNX Runtime is built from sources / via wrap (depends on ORT version) |
 | **OpenMP runtime** | — | Runtime | 🟡 | Recommended for tiling / parallelism (Linux: often via `libomp-dev` for Clang; MacOS: `libomp`) |
 | **NUMA** | — | Runtime | 🔵 | Optional; **Linux-only** (multi-socket topology / affinity; typically `libnuma-dev`) |
 
