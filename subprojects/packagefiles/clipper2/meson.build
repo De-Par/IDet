@@ -28,4 +28,4 @@ clipper2_lib = static_library('clipper2',
 clipper2_dep = declare_dependency(
     link_with: clipper2_lib,
     include_directories: clipper2_inc,
-)
+).as_system('system')

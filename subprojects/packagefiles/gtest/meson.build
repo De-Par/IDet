@@ -43,25 +43,25 @@ gtest_dep = declare_dependency(
     link_with: [gtest_lib],
     include_directories: [gtest_inc],
     dependencies: [threads],
-)
+).as_system('system')
 
 gtest_main_dep = declare_dependency(
     link_with: [gtest_main_lib, gtest_lib],
     include_directories: [gtest_inc],
     dependencies: [threads],
-)
+).as_system('system')
 
 gmock_dep = declare_dependency(
     link_with: [gmock_lib, gtest_lib],
     include_directories: [gmock_inc, gtest_inc],
     dependencies: [threads],
-)
+).as_system('system')
 
 gmock_main_dep = declare_dependency(
     link_with: [gmock_main_lib, gmock_lib, gtest_lib],
     include_directories: [gmock_inc, gtest_inc],
     dependencies: [threads],
-)
+).as_system('system')
 
 meson.override_dependency('gtest', gtest_dep)
 meson.override_dependency('gtest_main', gtest_main_dep)

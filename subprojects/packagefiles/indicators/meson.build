@@ -11,4 +11,4 @@ indicators_inc = include_directories('include', is_system: true)
 
 indicators_dep = declare_dependency(
     include_directories: indicators_inc,
-)
+).as_system('system')
