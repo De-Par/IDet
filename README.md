@@ -10,10 +10,29 @@
 
 ![idet_logo](docs/assets/idet_logo.png)
 
-**IDet** is a fast, production-oriented **CPU-only** C++ library for **image detection pipelines**, built on top of **ONNX Runtime**. Library supports two modes: **text detection** (DBNet / PP-OCR-style models) and **face detection** (SCRFD family). Key features include **tiled inference**, **polygon NMS**, **IOBinding** (zero per-frame allocations), explicit **threading/memory control**, and **reproducible performance profiles** for modern multi-core CPUs. Demo application contains stunning **performance report** with p50/90/95/99 latency, runtime policy and detector configuration details.
+**IDet** is a fast, production-oriented **CPU-only** C++ library for **image detection pipelines**, built on top of **ONNX Runtime**. Library supports two modes: **text detection** (DBNet / PP-OCR-style models) and **face detection** (SCRFD family). Key features include **tiled inference**, **polygon NMS**, **IOBinding** (zero per-frame allocations), explicit **threading/memory control**, and **reproducible performance profiles** for modern multi-core CPUs. Demo application contains stunning **performance report** with p50 / p90 / p95 / p99 latency, runtime policy and detector configuration details.
+
+
+## Why IDet?
+
+Most demo repos optimize for “it runs”. **IDet** optimizes for:
+
+- **CPU-first deployment**
+- **reproducible performance experiments**
+- **low allocation churn**
+- **controllable threading**
+- **maintainable C++ integration**
+- **model-agnostic detector pipelines (within supported output contracts)**
+
+This makes **IDet** suitable for:
+- server-side CPU inference
+- embedded-ish x86 / ARM deployments (when GPU is not available or not desired)
+- benchmarking and systems-level performance tuning
+- integrating detection into larger C++ products
+
 
 ## Table of Contents
- 
+
 - [Highlights](#highlights)
 - [Project Scope](#project-scope)
 - [Requirements](#requirements)
@@ -24,7 +43,7 @@
     - [Environment](#environment)
     - [Setup](#setup)
 - [Install & Build](#install--build)
-    - [Install ONNX Runtime](#install-onnx-runtime)
+    - [Setup ORT Install Path](#setup-ort-install-path)
         - [System Install](#1-system-install-macos-only-homebrew)
         - [From Sources](#2-build-from-sources-both-os-cpu--mlas)
         - [Via Meson Wrap](#3-via-meson-wrap-prefered)
@@ -40,7 +59,7 @@
     - [Generic](#generic)
     - [Inference](#inference)
     - [Runtime](#runtime)
-    - [Benchmark](#benchmark)
+    - [Benchmark](#benchmark) 
     - [Help](#help)
 - [Quick Start](#quick-start)
     - [Text Detection](#text-detection)
@@ -55,26 +74,38 @@
 
 ## Highlights
 
-- ⚡ **High-performance CPU inference** (x86 / ARM, MacOS & Linux)
-- 🧠 **Multiple pipelines**: text detection, face detection
-- 🧩 **Tiled inference** (RxC grid) with overlap + polygonal NMS
-- 💾 **IOBinding**: reusable buffers, zero allocations per frame
-- 📈 **Bench mode**: p50 / p90 / p95 / p99 latency
-- 🔒 **Accurate logging & error handling**: all interaction goes through wrappers
-- 🔧 **Explicit threading model**:
+- ⚡ **High-performance CPU inference** (x86 / ARM, Linux & MacOS)
+- 🧠 **Multiple detection pipelines**: text and face detection
+- 🧩 **Tiled inference** (`RxC`) with overlap for small-object recall
+- 📐 **Polygon-based post-processing** with NMS
+- 💾 **ONNX Runtime IOBinding** for reusable input/output buffers
+- 📈 **Benchmark mode** with p50 / p90 / p95 / p99 latency
+- 🔒 **Accurate logging & error handling:** all interaction goes through wrappers
+- 🧵 **Explicit threading model:**
     - OpenMP → outer parallelism (tiles / batches)
-    - ONNX Runtime → intra-op graph execution
+    - ONNX Runtime → intra-op / inter-op graph execution
+- 🔧 **Runtime policy controls:**
+    - affinity / topology-aware execution (where supported)
+    - optional NUMA memory locality helpers
+    - OpenCV thread suppression to avoid oversubscription
 
 
 ## Project Scope
 
-**IDet** is designed as a **low-level inference toolkit**, not an end-to-end OCR or face recognition system, which intentionally focuses on:
+**IDet** is intentionally a **low-level inference toolkit**, not a full OCR stack or face recognition framework.
 
-  - predictable latency
-  - CPU efficiency
-  - explicit memory ownership
-  - minimal dependencies
-  - clean C++ integration
+### In scope
+- ONNX Runtime-based CPU detector execution
+- pre-processing / post-processing for supported detector families
+- tiled inference and result stitching
+- performance benchmarking and runtime policy control
+- library integration + CLI demo tooling
+
+### Out of scope
+- OCR text recognition and language models
+- face recognition / embeddings / tracking
+- dataset labeling / training pipelines
+- GUI applications
 
 
 ## Requirements
@@ -86,7 +117,7 @@
 | **pkg-config** | — | Build | 🟢 | Used to discover system dependencies (OpenCV / ORT, etc.) |
 | **OpenCV** | **3.0+** | Runtime | 🟢 | Modules: `core`, `imgproc`, `imgcodecs` |
 | **ONNX Runtime (CPU / MLAS)** | — | Runtime | 🟢 | Can be provided via `system install`, `meson wrap` or `source build` |
-| **CMake** | **≥ 3.11** | Build | 🟡 | Needed **only** if ONNX Runtime is built from sources / via wrap (depends on ORT version) |
+| **CMake** | **≥ 3.18** | Build | 🟡 | Needed **only** if ONNX Runtime is built from sources / via wrap (depends on ORT version) |
 | **OpenMP runtime** | — | Runtime | 🟡 | Recommended for tiling / parallelism (Linux: often via `libomp-dev` for Clang; MacOS: `libomp`) |
 | **NUMA** | — | Runtime | 🔵 | Optional; **Linux-only** (multi-socket topology / affinity; typically `libnuma-dev`) |
 
@@ -115,7 +146,6 @@ brew install \
 > ```bash
 > python3 -m venv .venv
 > source .venv/bin/activate
-> python --version
 > pip install -U pip
 >```
 
@@ -136,7 +166,7 @@ Profiles are defined in `toolchain/profiles` directory and control:
 
 The toolchain loader reads environment variables from:
 
-- `toolchain/env/defaults.env` — **repository defaults** (committed).
+- **[toolchain/env/defaults.env](toolchain/env/defaults.env)** — **repository defaults** (committed).
   Defines baseline settings and may provide a default `TC_PROFILE` plus generic tool names / behavior defaults.
 
 - `toolchain/env/local.env` — **optional local/repo overrides** (not required; may be committed in this repository).
@@ -148,39 +178,49 @@ The toolchain loader reads environment variables from:
 
 The toolchain is designed to be **sourced once per terminal session**. It sets up a reproducible build environment: selected compiler, tool versions, Meson native file and default build directory.
 
-> ⚠️ **Warn:** `toolchain/tc.sh` and `toolchain/activate.sh` must be sourced from **bash** (not zsh). They export environment variables into your current shell. On macOS, run `bash` first, then `source toolchain/*.sh`.
+> ⚠️ **Warn:** **[toolchain/activate.sh](toolchain/activate.sh)** and **[toolchain/tc.sh](toolchain/tc.sh)** must be sourced from **bash** (not zsh), not executed. They export environment variables into your current shell. On macOS, run `bash` first, then `source toolchain/*.sh`.
 
-1) List available profiles:
+1) List available (or selected) profiles:
     ```bash
     source toolchain/tc.sh
     tc_list
     ```
+    ![tc_list](docs/assets/tc_profile_list.png)
 
-2) Choose the one you like:
+2) Choose specific profile with related configuration:
     ```bash
     source toolchain/activate.sh <profile>
-    # or see usage
-    source toolchain/activate.sh -h
-    ```
 
-3) Next run building / testing / etc. :
-    ```bash
-    idet-build
-    idet-test
-    # ...
+    # Display selected configuration:
+    tc_print
     ```
+    ![tc_print](docs/assets/tc_profile_print.png)
+
+3) Next you can explore `scripts` directory located in root of project to run specific case you want. See detailed description [below](#install--build) about building and testing library. The table below lists some of the scripts and their capabilities:
+
+    | Script | Alias | Description |
+    |:---|:---|:---|
+    | [build.sh](scripts/build.sh) | `idet-build` | Project builder via Meson |
+    | [run_tests.sh](scripts/run_tests.sh) | `idet-test` | Run unit tests for library target |
+    | [format_code.sh](scripts/format_code.sh) | `idet-fmt` | Formats C/C++ project sources in-place |
+    | [clang_static_analyzer.sh](scripts/clang_static_analyzer.sh) | `idet-csa` | Clang static analyzer with foft and hard modes |
+    | [include_cleaner.sh](scripts/include_cleaner.sh) | `idet-inc-clean` | Include directives cleaner util |
+    | [run_idet_text.sh](scripts/run_idet_text.sh) | `idet-text` | Run text detection on test input data |
+    | [run_idet_face.sh](scripts/run_idet_face.sh) | `idet-face` | Run face detection on test input data |
+
+    > 💡 **Note:** Every script supports `-h` / `--help` with usage details and available flags.
 
 
 ## Install & Build
 
-### Install ONNX Runtime
+### Setup ORT Install Path 
 
 IDet supports **three** ways to provide ONNX Runtime (CPU / MLAS). From Meson’s point of view there are two modes:
 
 - **External ORT** (`-Donnxruntime_system=true`)
   You provide headers/libs via Homebrew (macOS) or your own install (Linux/macOS from sources).
 - **Bundled ORT subproject** (`-Donnxruntime_system=false`, default)
-  ORT is built automatically via Meson **wrap/subproject**.
+  ORT is built automatically via Meson wrap.
 
 Below are the **three** practical workflows:
 
@@ -193,15 +233,15 @@ This is the simplest way on MacOS:
 brew install onnxruntime
 ```
 
-Configure Meson to use the system ORT or change `meson_options.txt` in root directory:
+Configure Meson to use the system ORT or change **[meson_options.txt](meson_options.txt)** in root directory of project:
 ```bash
-idet-build setup -- -Donnxruntime_system=true
+scripts/build.sh setup -- -Donnxruntime_system=true
 ```
 
 If Meson cannot locate ORT via its CMake package, provide paths explicitly (these options are used **only** when the CMake package is not found):
 ```bash
 ORT_PREFIX="$(brew --prefix onnxruntime)"
-idet-build setup -- -Donnxruntime_inc="${ORT_PREFIX}/include/onnxruntime" -Donnxruntime_lib="${ORT_PREFIX}/lib"
+scripts/build.sh setup -- -Donnxruntime_inc="${ORT_PREFIX}/include/onnxruntime" -Donnxruntime_lib="${ORT_PREFIX}/lib"
 ```
 
 > 💡 **Note:** Prefer `$(brew --prefix onnxruntime)` over hardcoding `Cellar/...` because `opt/` is stable across upgrades.
@@ -216,7 +256,7 @@ git clone --recursive https://github.com/microsoft/onnxruntime.git
 cd onnxruntime
 
 # Optional but recommended: build a release tag instead of main
-# git checkout v<version>
+# git checkout <version>
 
 ./build.sh --config Release --build_shared_lib --parallel --skip_submodule_sync
 ```
@@ -235,23 +275,23 @@ find build -maxdepth 4 -type f \( -name "libonnxruntime.so*" -o -name "libonnxru
 
 Then copy them:
 ```bash
-# Linux example
+# Linux example:
 sudo cp -d build/Linux/Release/libonnxruntime.so* /usr/local/lib/
 sudo cp -d build/Linux/Release/libonnxruntime_providers_shared.so /usr/local/lib/ 2>/dev/null || true
 sudo ldconfig
 
-# MacOS example
+# MacOS example:
 sudo cp -d build/MacOS/Release/libonnxruntime.dylib /usr/local/lib/
 ```
 
 Now tell **IDet** to use external ORT:
 ```bash
-idet-build setup -- -Donnxruntime_system=true
+scripts/build.sh setup -- -Donnxruntime_system=true
 ```
 
 If discovery fails, specify paths explicitly:
 ```bash
-idet-build setup -- -Donnxruntime_inc="/usr/local/include/onnxruntime" -Donnxruntime_lib="/usr/local/lib"
+scripts/build.sh setup -- -Donnxruntime_inc="/usr/local/include/onnxruntime" -Donnxruntime_lib="/usr/local/lib"
 ```
 
 > 💡 **Note:** building ORT from sources (or via wrap) may require a newer CMake depending on the ORT tag. If ORT build fails, upgrade CMake or pin an older ORT tag.
@@ -260,20 +300,26 @@ idet-build setup -- -Donnxruntime_inc="/usr/local/include/onnxruntime" -Donnxrun
 
 #### 3) Via Meson Wrap (prefered)
 
-This is the most reproducible option and requires no system ORT installation. By default, IDet builds ONNX Runtime as a **bundled subproject** (via `subprojects/*` wrap config):
+This is the most reproducible option and requires no system ORT installation. By default, **IDet** builds ONNX Runtime as a **bundled subproject** via Meson wrap. Please, select the appropriate **`revision`** in **[subprojects/onnxruntime.wrap](subprojects/onnxruntime.wrap)** before installation!
 ```bash
-idet-build setup  # default: -Donnxruntime_system=false -Donnxruntime_inc='' -Donnxruntime_lib=''
+# Defaults:
+#   -Donnxruntime_system=false
+#   -Donnxruntime_inc=''
+#   -Donnxruntime_lib=''
+
+scripts/build.sh setup
 ```
 
 > 💡 **Note:**
-> - First build may take longer (ORT is built as part of the project)
-> - This mode may still require **CMake** on the host to build ORT (depending on the wrap/ORT version)
+> - First build may take longer (ORT is built as part of the project).
+> - This mode may still require **CMake** on the host to build ORT and depending on specified version.
+
 
 ### Build Project
 
-Once all **dependencies** are resolved, the **environment/profile** is configured, and the **ONNX Runtime** installation path is selected, you can begin building the **IDet** library and their **demo CLI application** to demonstrate its functionality.
+Once all **dependencies** are resolved, the **environment / profile** is configured, and the **ONNX Runtime** installation path is selected, you can begin building the **IDet** library and their **demo CLI application** to demonstrate its functionality.
 
-Let's go through all steps again using the example of building all deoendencies via **Meson wrap**:
+Let's go through all steps again using the example of building all dependencies via **Meson wrap**:
 
 #### 1) Activate default profile
 
@@ -283,7 +329,7 @@ source toolchain/activate.sh
 
 #### 2) Build all targets
 ```bash
-idet-build force -- -Didet_libtype="shared"
+scripts/build.sh force -- -Didet_libtype="shared"
 ```
 
 > 💡 **Note:**
@@ -296,24 +342,13 @@ idet-build force -- -Didet_libtype="shared"
 
 Tests are enabled via Meson option `build_tests`. If you (or profile policy) disabled them earlier, reconfigure the build first:
 ```bash
-idet-build force -- -Dbuild_tests=true
+scripts/build.sh force -- -Dbuild_tests=true
 ```
 
 Then run the test suite:
 ```bash
-idet-test
+scripts/run_tests.sh
 ```
-
-#### 4) Run developer tools
-
-Common helper scripts:
-```bash
-idet-fmt
-idet-csa
-idet-inc-clean
-```
-
-> 💡 **Note:** Every script supports `-h` / `--help` with usage details and available flags.
 
 
 ## Model Zoo
@@ -322,7 +357,7 @@ This project is **model-agnostic** as long as your detector exports a single-cha
 
 ### MMOCR
 
-MMOCR provides many detectors (R50, MobileNet, DCN variants, etc.). You can export them to ONNX and use them directly with this tool. Detailed information about available models you can find there: [mmocr_models](https://mmocr.readthedocs.io/en/dev-1.x/textdet_models.html). Also, take a look on support in ONNX Runtime: [mmocr_support](https://mmdeploy.readthedocs.io/en/latest/04-supported-codebases/mmocr.html).
+MMOCR provides many detectors (R50, MobileNet, DCN variants, etc.). You can export them to ONNX and use them directly with this tool. Detailed information about available models you can find there: **[mmocr_models](https://mmocr.readthedocs.io/en/dev-1.x/textdet_models.html)**. Also, take a look on support in ONNX Runtime: **[mmocr_support](https://mmdeploy.readthedocs.io/en/latest/04-supported-codebases/mmocr.html)**.
 
 **Export with MMOCR’s `pytorch2onnx.py`**
 
@@ -359,7 +394,7 @@ MMOCR provides many detectors (R50, MobileNet, DCN variants, etc.). You can expo
 
 ### PaddleOCR
 
-There are pre-converted **PaddleOCR** detectors on the Hugging Face Hub: [deepghs/paddleocr](https://huggingface.co/deepghs/paddleocr/tree/main). The collection includes multiple **PP-OCR** detector generations (v2/v3/v4), including lightweight **mobile** variants and higher-accuracy **server** variants. Typical model names you can find in `assets/models/paddleocr` directory:
+There are pre-converted **PaddleOCR** detectors on the Hugging Face Hub: **[deepghs/paddleocr](https://huggingface.co/deepghs/paddleocr/tree/main)**. The collection includes multiple **PP-OCR** detector generations (v2/v3/v4), including lightweight **mobile** variants and higher-accuracy **server** variants. Typical model names you can find in `assets/models/paddleocr` directory:
 
 - `ch_ppocr_v2_det.onnx`
 - `ch_ppocr_v2_mobile_det.onnx`
@@ -372,14 +407,14 @@ There are pre-converted **PaddleOCR** detectors on the Hugging Face Hub: [deepgh
 
 ### DBNet / DBNet++
 
-If you want to test “classic” **DBNet / DBNet++** models (e.g., **1200e** trained checkpoints on **ICDAR2015**), the Hugging Face Hub repo by **deepghs** provides ready-to-use ONNX exports: [deepghs/text_detection](https://huggingface.co/deepghs/text_detection/tree/main). You can find multiple backbone variants, including **ResNet-18** and **ResNet-50** FPNC-style models, where some of these models may already be available in `assets/models/dbnet` directory:
+If you want to test “classic” **DBNet / DBNet++** models (e.g., **1200e** trained checkpoints on **ICDAR2015**), the Hugging Face Hub repo by **deepghs** provides ready-to-use ONNX exports: **[deepghs/text_detection](https://huggingface.co/deepghs/text_detection/tree/main)**. You can find multiple backbone variants, including **ResNet-18** and **ResNet-50** FPNC-style models, where some of these models may already be available in `assets/models/dbnet` directory:
 
 - `dbnet_resnet_18_fpnc.onnx`
 - `dbnet_resnet_50_dcnv2_fpnc.onnx`
 
 ### SCRFD
 
-There are pre-converted **SCRFD** face detectors on the Hugging Face Hub: [ykk648/face_lib](https://huggingface.co/ykk648/face_lib/tree/main/face_detect/scrfd_onnx). The repo includes multiple SCRFD variants (from lightweight to higher-accuracy backbones). SCRFD models typically output **face bounding boxes + confidence scores**, and many variants also predict **5 facial landmarks** (eyes / nose / mouth corners). In model names, bnkps commonly indicates **bboxes + keypoints**. Typical model names you can find in `assets/models/scrfd` directory:
+There are pre-converted **SCRFD** face detectors on the Hugging Face Hub: **[ykk648/face_lib](https://huggingface.co/ykk648/face_lib/tree/main/face_detect/scrfd_onnx)**. The repo includes multiple SCRFD variants (from lightweight to higher-accuracy backbones). SCRFD models typically output **face bounding boxes + confidence scores**, and many variants also predict **5 facial landmarks** (eyes / nose / mouth corners). In model names, bnkps commonly indicates **bboxes + keypoints**. Typical model names you can find in `assets/models/scrfd` directory:
 
 - `scrfd_500m_bnkps.onnx`
 
@@ -464,7 +499,7 @@ There are pre-converted **SCRFD** face detectors on the Hugging Face Hub: [ykk64
 > ⚠️ **Warn:** each detection is reported as a quadrilateral (4-point polygon) using **four vertices in TL → TR → BR → BL order** (clockwise), where `(x0,y0)=TL`, `(x1,y1)=TR`, `(x2,y2)=BR`, `(x3,y3)=BL`:
 ```text
 x0,y0 x1,y1 x2,y2 x3,y3
-``` 
+```
 
 
 ## Quick Start
@@ -477,13 +512,13 @@ x0,y0 x1,y1 x2,y2 x3,y3
 
 #### 1) Basic single-shot detection:
 ```bash
-idet-text
+scripts/run_idet_text.sh
 ```
 ![single_text_mode](docs/assets/single_text_mode.png)
 
 #### 2) Detection with tiling:
 ```bash
-idet-text tile
+scripts/run_idet_text.sh tile
 ```
 ![tiled_text_mode](docs/assets/tiled_text_mode.png)
 
@@ -491,13 +526,13 @@ idet-text tile
 
 #### 1) Basic single-shot detection:
 ```bash
-idet-face
+scripts/run_idet_face.sh
 ```
 ![single_face_mode](docs/assets/single_face_mode.png)
 
 #### 2) Detection with tiling:
 ```bash
-idet-face tile
+scripts/run_idet_face.sh tile
 ```
 ![tiled_face_mode](docs/assets/tiled_face_mode.png)
 
@@ -531,12 +566,12 @@ Effective application and detector configuration:
 ## Performance Tuning Guide
 
 - **Two levels of parallelism**:
-    - **OpenMP (outer)** = `--tile_omp` (or `OMP_NUM_THREADS`) → parallel tiles.
-    - **ONNX Runtime (inner)** = `--threads_intra` → parallel inside a tile.
+  - **OpenMP (outer)** = `--tile_omp` (or `OMP_NUM_THREADS`) → parallel tiles.
+  - **ONNX Runtime (inner)** = `--threads_intra` → parallel inside a tile.
 
 - **Thresholds**:
-    - `--bin_thresh` usually 0.2–0.4, `--box_thresh` 0.5–0.7.
-    - For small objects, increase `--max_img_size` or use tiling with overlap `0.10–0.20`.
+  - `--bin_thresh` usually 0.2–0.4, `--box_thresh` 0.5–0.7.
+  - For small objects, increase `--max_img_size` or use tiling with overlap `0.10–0.20`.
 
 - **Avoid oversubscription**: on large CPUs, prefer **many tiles** (`--tile_omp`) and **few ORT threads** (`--threads_intra 1–2`).
 
@@ -603,10 +638,10 @@ Tune `--bin_thresh`, `--box_thresh`, `--unclip`. If model lacks final sigmoid, s
 This project uses such libraries / frameworks:
   - **OpenCV** (image data processing)
   - **OpenMP** (fast tiled inference)
-  - **ONNX Runtime** (inference engine)
+  - **ONNX Runtime** (inference core engine)
   - **NUMA** (cpu/mem binding topology for multi-socket nodes)
   - **GTest** (test coverage)
-  - **Indicators** (pretty output)
+  - **Indicators** (pretty output with progress bar)
 
 Supported model families:
 - **DBNet** / **DBNet++** / **PP-OCR** (text detection)
