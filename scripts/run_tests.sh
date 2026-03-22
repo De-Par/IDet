@@ -20,12 +20,12 @@ usage() {
 Run tests (Meson)
 
 Usage:
-    ./scripts/run_tests.sh [--no-rebuild] [--suite NAME] [--repeat N] [--gdb] [--] [extra meson test args...]
+    scripts/run_tests.sh [--no-rebuild] [--suite NAME] [--repeat N] [--gdb] [--] [extra meson test args...]
 
 Examples:
     source toolchain/activate.sh 
-    ./scripts/run_tests.sh
-    ./scripts/run_tests.sh --suite unit
+    scripts/run_tests.sh
+    scripts/run_tests.sh --suite unit
 EOF
 }
 

@@ -20,7 +20,7 @@ usage() {
 Project builder script (Meson)
 
 Usage:
-    ./scripts/build.sh [mode] -- [meson_setup_args...]
+    scripts/build.sh [mode] -- [meson_setup_args...]
 
 Modes:
     (empty)     setup/reconfigure + build
@@ -32,14 +32,14 @@ Passing Meson args:
     Everything after `--` is forwarded to `meson setup` / `meson setup --reconfigure`
 
 Examples:
-    ./scripts/build.sh
-    ./scripts/build.sh force
-    ./scripts/build.sh setup -- -Dbuild_tests=false -Duse_openmp=true
-    ./scripts/build.sh force -- -Donnxruntime_system=true
+    scripts/build.sh
+    scripts/build.sh build
+    scripts/build.sh setup -- -Dbuild_tests=false -Duse_openmp=true
+    scripts/build.sh force -- -Donnxruntime_system=true
 
 Typical workflow:
     source toolchain/activate.sh
-    ./scripts/build.sh force
+    scripts/build.sh force
 EOF
 }
 

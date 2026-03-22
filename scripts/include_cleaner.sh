@@ -21,7 +21,7 @@ usage() {
 Include directives cleaner util
 
 Usage:
-    ./scripts/include_cleaner.sh [--fix] [--misinc] [--] [paths...]
+    scripts/include_cleaner.sh [--fix] [--misinc] [--] [paths...]
 
 Options:
     --fix         apply fixes in-place
@@ -30,7 +30,7 @@ Options:
 
 Examples:
     source toolchain/activate.sh
-    ./scripts/include_cleaner.sh --fix -- src/app
+    scripts/include_cleaner.sh --fix -- src/app
 EOF
 }
 

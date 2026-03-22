@@ -28,12 +28,12 @@ usage() {
 Run face detection (requires activated toolchain env)
 
 Usage:
-    ./scripts/run_idet_face.sh [tile|t|single|s] [--] [extra idet_app args...]
+    scripts/run_idet_face.sh [tile|t|single|s] [--] [extra idet_app args...]
 
 Example:
     source toolchain/activate.sh
-    ./scripts/run_idet_face.sh
-    ./scripts/run_idet_face.sh tile
+    scripts/run_idet_face.sh
+    scripts/run_idet_face.sh tile
 EOF
 }
 

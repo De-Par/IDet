@@ -23,12 +23,12 @@ Clang Static Analyzer with two modes:
     - hard      Run scan-build for a more in-depth static analysis and generate HTML reports 
 
 Usage:
-    ./scripts/clang_static_analyzer.sh [soft|hard]
+    scripts/clang_static_analyzer.sh [soft|hard]
 
 Examples:
     source toolchain/activate.sh 
-    ./scripts/clang_static_analyzer.sh soft
-    ./scripts/clang_static_analyzer.sh hard
+    scripts/clang_static_analyzer.sh soft
+    scripts/clang_static_analyzer.sh hard
 EOF
 }
 

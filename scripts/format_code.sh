@@ -21,12 +21,12 @@ usage() {
 Formats C/C++ sources in-place (or checks formatting without modifying)
 
 Usage:
-    ./scripts/format_code.sh [--check|--help]
+    scripts/format_code.sh [--check|--help]
 
 Examples:
     source toolchain/activate.sh 
-    ./scripts/format_code.sh --check
-    ./scripts/format_code.sh 
+    scripts/format_code.sh --check
+    scripts/format_code.sh 
 EOF
 }
 
