@@ -63,10 +63,16 @@ _tc_cleanup_internals "_act_*"
 
 export TC_ACTIVE=1
 
+# build
 alias idet-build="${ROOT_DIR}/scripts/build.sh"
+
+# run targets
 alias idet-test="${ROOT_DIR}/scripts/run_tests.sh"
 alias idet-face="${ROOT_DIR}/scripts/run_idet_face.sh"
 alias idet-text="${ROOT_DIR}/scripts/run_idet_text.sh"
+alias idet-yuvv="${ROOT_DIR}/scripts/run_yuvv.sh"
+
+# run sanitizers
 alias idet-csa="${ROOT_DIR}/scripts/clang_static_analyzer.sh"
 alias idet-inc-clean="${ROOT_DIR}/scripts/include_cleaner.sh"
 alias idet-fmt="${ROOT_DIR}/scripts/format_code.sh"
