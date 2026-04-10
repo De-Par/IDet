@@ -201,7 +201,7 @@ case "${MODE}" in
             -plist-html \
             --status-bugs \
             -o "${OUT_DIR}" \
-            "${MESON_BIN}" compile -C "${BUILD_DIR}" -j "${JOBS_EFF}"
+            "${MESON_BIN}" compile -C "${BUILD_DIR}" -j "${JOBS_EFF}" 
 
         REPORT_HTML="$(find "${OUT_DIR}" -type f -name index.html 2>/dev/null | head -n 1 || true)"
         if [[ -n "${REPORT_HTML}" ]]; then

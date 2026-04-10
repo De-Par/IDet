@@ -76,7 +76,7 @@ path_exists "${IMG}"
 
 log "----------------------------------------------"
 log "[INFO] Run face (${MODE})"
-log "[INFO] profile    : ${TC_PROFILE}"
+log "[INFO] profile   : ${TC_PROFILE}"
 log "[INFO] build dir : ${BUILD_DIR}"
 log "[INFO] app       : ${APP}"
 log "[INFO] model     : ${MODEL}"
@@ -101,8 +101,8 @@ common_args=(
     --runtime_policy 1
     --soft_mem_bind 1
     --suppress_opencv 1
-    --bench_iters 100
-    --warmup_iters 20
+    --bench_iters 500
+    --warmup_iters 100
     --is_draw 1
     --is_dump 0
     --verbose 1
@@ -110,7 +110,7 @@ common_args=(
 
 tile_args=(
     --tiles_rc 3x3
-    --fixed_hw 160x256
+    --fixed_hw 192x320
     --tile_overlap 0.1
     --threads_intra 1
     --threads_inter 1
@@ -118,19 +118,21 @@ tile_args=(
 )
 
 single_args=(
-    --fixed_hw 512x768
-    --max_img_size 768
+    --fixed_hw 512x960
+    --max_img_size 960
     --threads_intra 9
     --threads_inter 1
     --tile_omp 1
 )
 
 args=( "${common_args[@]}" )
+
 if [[ "${MODE}" == "tile" ]]; then
     args+=( "${tile_args[@]}" )
 else
     args+=( "${single_args[@]}" )
 fi
+
 if ((${#APP_EXTRA_ARGS[@]} > 0)); then
     args+=( "${APP_EXTRA_ARGS[@]}" )
 fi
@@ -138,7 +140,7 @@ fi
 # Dump full command
 printf '[CMD] '
 printf '%q ' "${APP}" "${args[@]}"
-echo
+echo 
 
 # Run final command
 exec "${APP}" "${args[@]}"

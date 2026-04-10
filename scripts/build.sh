@@ -33,7 +33,7 @@ Passing Meson args:
 
 Examples:
     scripts/build.sh
-    scripts/build.sh build
+    scripts/build.sh force
     scripts/build.sh setup -- -Dbuild_tests=false -Duse_openmp=true
     scripts/build.sh force -- -Donnxruntime_system=true
 
