@@ -4,13 +4,13 @@ root = true
 # Global defaults
 ##############################
 [*]
-charset = utf-8                 # All files are UTF-8
-end_of_line = lf                # Unix line endings
-indent_style = space            # Use spaces by default
-indent_size = 4                 # 4-space indentation
-tab_width = 4                   # Tab visually equals 4 spaces
-insert_final_newline = true     # Ensure newline at EOF
-trim_trailing_whitespace = true # Strip trailing spaces on save
+charset = utf-8  # All files are UTF-8
+end_of_line = lf  # Unix line endings
+indent_style = space  # Use spaces by default
+indent_size = 4  # 4-space indentation
+tab_width = 4  # Tab visually equals 4 spaces
+insert_final_newline = true  # Ensure newline at EOF
+trim_trailing_whitespace = true  # Strip trailing spaces on save
 
 
 ##############################
@@ -43,7 +43,7 @@ indent_size = 4
 ##############################
 [CMakeLists.txt]
 indent_style = space
-indent_size = 2                 # Common CMake convention
+indent_size = 2  # Common CMake convention
 
 [*.cmake]
 indent_style = space
@@ -82,7 +82,7 @@ indent_size = 2
 # Markdown / docs
 ##############################
 [*.md]
-trim_trailing_whitespace = false # Trailing spaces can be meaningful in Markdown
+trim_trailing_whitespace = false  # Trailing spaces can be meaningful in Markdown
 indent_style = space
 indent_size = 2
 
@@ -91,7 +91,7 @@ indent_size = 2
 # Makefile (tabs are required)
 ##############################
 [Makefile]
-indent_style = tab              # Makefile syntax requires tabs for rules
+indent_style = tab  # Makefile syntax requires tabs for rules
 
 
 ##############################
