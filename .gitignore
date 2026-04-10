@@ -1,9 +1,8 @@
 # IDE configs
 .vscode
 .idea
-.venv
 
-# Build dirs
+# Build dir
 build*/
 
 # Prerequisites
@@ -54,8 +53,8 @@ meson_test_setup.dat
 meson_native*.ini
 
 # C++ specific
-sanitycheckcpp.cc
-sanitycheckcpp.exe
+sanitycheckcpp.cc     
+sanitycheckcpp.exe   
 
 # Ninja
 build.ninja
@@ -63,6 +62,7 @@ build.ninja
 .ninja_logs
 
 # Python
+.venv
 __pycache__/
 
 # Misc
@@ -78,11 +78,15 @@ compile_commands.json
 # MacOS Finder metadata 
 **/.DS_Store
 
-# Temp files / logs
+# Temp files / logs 
 reports
 profiling
+data
 docs/api
 docs/site
+*.log
+*.tmp
+*.html
 
 # Local env
 toolchain/env/local.env
