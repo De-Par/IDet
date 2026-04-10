@@ -92,8 +92,8 @@ option(
 )
 
 option(
-    'build_tests',
-    type        : 'boolean',
-    value       : true,
+    'build_tests', 
+    type        : 'boolean', 
+    value       : true, 
     description : 'Build unit tests and run them using GTest',
 )
