@@ -88,7 +88,6 @@ def run_one(cmd: List[str], timeout_s: float) -> Tuple[Dict[str, Optional[float]
     Returns: (metrics, status)
     status: ok | timeout | no_metrics | failed
     """
-
     def _to_text(x: Any) -> str:
         if x is None:
             return ""
@@ -227,7 +226,10 @@ def max_hw_for_tiles_rc(fhd_h: int, fhd_w: int, tiles_rc: str) -> Tuple[int, int
 
 
 def pick_best_tiling_rc_by_tile_area(
-    fhd_h: int, fhd_w: int, tiling_tiles_rc: List[str], max_threads: int
+    fhd_h: int,
+    fhd_w: int,
+    tiling_tiles_rc: List[str],
+    max_threads: int
 ) -> Optional[str]:
     best_rc = None
     best_area = -1
@@ -341,9 +343,7 @@ def compute_reference_dets(
 
         cmd = build_cmd(ref_base_cmd, kv)
         cmd_str = shell_join(cmd)
-        print(
-            f"[REF] tiling baseline run: tiles_rc={best_rc} fixed_hw={kv['fixed_hw']} desired_threads={desired} cmd={cmd_str}"
-        )
+        print(f"[REF] tiling baseline run: tiles_rc={best_rc} fixed_hw={kv['fixed_hw']} desired_threads={desired} cmd={cmd_str}")
 
         metrics, status = run_one(cmd, timeout_s=timeout_s)
         if status != "ok":
@@ -357,10 +357,7 @@ def compute_reference_dets(
 
 
 def main():
-    ap = argparse.ArgumentParser(
-        description="Generate idet_app commands, parse p50/p90/p95/p99 + dets_n, "
-        "filter by dets_n baseline, filter by max_threads cap, write CSV"
-    )
+    ap = argparse.ArgumentParser(description="Generate idet_app commands, parse p50/p90/p95/p99 + dets_n, filter by dets_n baseline, filter by max_threads cap, write CSV")
     ap.add_argument("--exe", required=True, help="Path to idet_app executable")
     ap.add_argument("--model", required=True, help="Path to ONNX model")
     ap.add_argument("--image", required=True, help="Path to input image")
@@ -376,7 +373,7 @@ def main():
     ap.add_argument("--max-threads", type=int, default=16, help="Max allowed desired_threads (default: 16)")
     ap.add_argument("--scale-dets", type=float, default=0.8, help="Filter: keep run only if dets_n >= ref_dets_n * scale_dets (default: 0.8)")
     ap.add_argument("--extra", type=str, default="", help="Extra args appended to command (quoted string)")
-
+    
     args = ap.parse_args()
 
     fhd_h, fhd_w = (int(args.ref_hw.split("x")[0]), int(args.ref_hw.split("x")[1]))
@@ -412,7 +409,7 @@ def main():
         base_cmd += shlex.split(args.extra)
 
     # Single mode
-    single_fixed_scales = [0.3 + dt * 0.05 for dt in range(15)]
+    single_fixed_scales = [0.3 + dt*0.05 for dt in range(15)]
     single_fixed_hw = [
         f"{floor_to_multiple(int(fhd_h * scale), 32)}x{floor_to_multiple(int(fhd_w * scale), 32)}"
         for scale in single_fixed_scales
@@ -473,14 +470,14 @@ def main():
         return True, ""
 
     # --------------------------
-    # Generate runs with max_threads filter
+    # Generate runs with max_threads filter (requested)
     # --------------------------
     runs: List[Tuple[str, Dict[str, Any]]] = []
     skipped_threads = 0
 
     if args.gen in ("single", "both"):
         for kv in gen_single_shot(single_fixed_hw, single_max_img_size, single_threads_intra, single_threads_inter):
-            ok, _desired = passes_max_threads(kv, int(args.max_threads))
+            ok, desired = passes_max_threads(kv, int(args.max_threads))
             if not ok:
                 skipped_threads += 1
                 continue
@@ -488,7 +485,7 @@ def main():
 
     if args.gen in ("tiling", "both"):
         for kv in gen_tiling(tiling_tiles_rc, tiling_threads_intra, tiling_threads_inter, fhd_w, fhd_h, tiling_fixed_scales):
-            ok, _desired = passes_max_threads(kv, int(args.max_threads))
+            ok, desired = passes_max_threads(kv, int(args.max_threads))
             if not ok:
                 skipped_threads += 1
                 continue
@@ -504,7 +501,7 @@ def main():
         "tiles_rc", "fixed_hw",
         "threads_intra", "threads_inter",
         "omp_threads",
-        "desired_threads",
+        "total_threads",  
         "command",
     ]
 
@@ -519,10 +516,10 @@ def main():
             if args.max_runs and done >= args.max_runs:
                 break
 
+            # defensive filter (just in case)
             ok, desired = passes_max_threads(kv, int(args.max_threads))
-            done += 1
-
             if not ok:
+                done += 1
                 print(f"[INFO] Progress: {done}/{all_runs} -> desired_threads={desired} > max_threads={args.max_threads} (skip)")
                 continue
 
@@ -531,9 +528,12 @@ def main():
 
             if args.dry_run:
                 print(cmd_str)
+                done += 1
                 continue
 
             metrics, status = run_one(cmd, timeout_s=args.timeout)
+            done += 1
+
             if status != "ok":
                 print(f"[INFO] Progress: {done}/{all_runs} -> status={status} (skip)")
                 continue
@@ -544,6 +544,7 @@ def main():
                 print(f"[INFO] Progress: {done}/{all_runs} -> {filter_msg} (skip)")
                 continue
 
+            # safe p90 check
             p90 = metrics.get("p90_ms")
             if p90 is None:
                 print(f"[INFO] Progress: {done}/{all_runs} -> p90_ms missing (skip)")
@@ -555,7 +556,7 @@ def main():
 
             print(f"[INFO] Progress: {done}/{all_runs} -> p90_ms={p90:.4f}, dets_n={d}, desired_threads={desired}")
 
-            tiles_rc, fixed_hw, ti, te, omp_th, _total_th = extract_fields_from_kv(kv)
+            tiles_rc, fixed_hw, ti, te, omp_th, total_th = extract_fields_from_kv(kv)
 
             w.writerow([
                 fmt_cell(metrics.get("p99_ms"), status),
@@ -570,14 +571,13 @@ def main():
                 ti,
                 te,
                 omp_th,
-                desired,
+                total_th,
 
                 cmd_str,
             ])
             f.flush()
 
     print(f"[OK] Saved: {out_path.resolve()}")
-    print(f"[OK] Candidate combos: {len(runs)} (skipped_by_max_threads={skipped_threads})")
 
 
 if __name__ == "__main__":
