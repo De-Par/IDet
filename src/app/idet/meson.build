@@ -13,7 +13,7 @@ idet_app_deps = [
 idet_app_build_rpath   = ''
 idet_app_install_rpath = ''
 
-# In static mode, ONNX Runtime becomes a direct runtime dependency of the application,
+# In static mode, ONNX Runtime becomes a direct runtime dependency of the application, 
 # so the RPATH must be set on the executable, not only on the shared library
 if idet_libtype == 'static' or (idet_libtype == 'both' and idet_exe_link == 'static')
     idet_app_build_rpath   = build_rpath

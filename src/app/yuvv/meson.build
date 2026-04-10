@@ -10,8 +10,9 @@ yuvv_app_deps = [
 executable(
     'yuv_viewer',
     yuvv_app_source,
-    cpp_args     : cxx_args,
-    link_args    : ld_args,
-    dependencies : yuvv_app_deps,
-    install      : true,
+    include_directories : [],
+    cpp_args            : cxx_args,
+    link_args           : ld_args,
+    dependencies        : yuvv_app_deps,
+    install             : true,
 )
