@@ -1,16 +1,54 @@
-# Fast CPU-only ROI Detection Library 🚀
+<h1 align="center">IDet</h1>
 
-[![C++17](https://img.shields.io/badge/C%2B%2B-17+-blue.svg)](https://en.cppreference.com/w/cpp/17)
-[![OpenCV](https://img.shields.io/badge/OpenCV-3.x+-purple.svg)](https://opencv.org/)
-[![ONNX Runtime](https://img.shields.io/badge/ONNX%20Runtime-CPU-red.svg)](https://onnxruntime.ai/)
-[![OpenMP](https://img.shields.io/badge/OpenMP-enabled-2ca44f.svg)](https://www.openmp.org/)
-[![NUMA](https://img.shields.io/badge/NUMA-enabled-yellow.svg)](https://github.com/numactl/numactl)
-[![Meson](https://img.shields.io/badge/Build-Meson-ff69b4.svg)](https://mesonbuild.com/)
-[![Linux|MacOS](https://img.shields.io/badge/OS-Linux%20%7C%20MacOS-lightgrey.svg)](#)
+<p align="center"><strong>Fast CPU-only ROI Detection Library for Real-Time Pipelines 🚀</strong></p>
 
-![idet_logo](docs/assets/idet_logo.png)
+<p align="center">
+  <a href="https://en.cppreference.com/w/cpp/17">
+    <img src="https://img.shields.io/badge/C%2B%2B-17%2B-2563EB.svg" alt="C++17">
+  </a>
+  <a href="https://opencv.org">
+    <img src="https://img.shields.io/badge/OpenCV-3.x%2B-12A34A.svg" alt="OpenCV">
+  </a>
+  <a href="https://www.openmp.org">
+    <img src="https://img.shields.io/badge/OpenMP-enabled-0F766E.svg" alt="OpenMP enabled">
+  </a>
+  <a href="https://github.com/numactl/numactl">
+    <img src="https://img.shields.io/badge/NUMA-aware-D97706.svg" alt="NUMA aware">
+  </a>
+  <a href="https://mesonbuild.com">
+    <img src="https://img.shields.io/badge/Build-Meson-7026D3.svg" alt="Meson">
+  </a>
+  <a href="https://github.com/google/googletest">
+    <img src="https://img.shields.io/badge/Tests-GTest-DC2626.svg" alt="Tests GTest">
+  </a>
+  <a href="#">
+    <img src="https://img.shields.io/badge/OS-Linux%20%7C%20macOS-6B7280.svg" alt="Linux and macOS">
+  </a>
+</p>
 
-**IDet** is a fast, production-oriented **CPU-only** C++ library for **image detection pipelines**, built on top of **ONNX Runtime**. Library supports two modes: **text detection** (DBNet / PP-OCR-style models) and **face detection** (SCRFD family). Key features include **tiled inference**, **polygon NMS**, **IOBinding** (zero per-frame allocations), explicit **threading/memory control**, and **reproducible performance profiles** for modern multi-core CPUs. Demo application contains stunning **performance report** with p50 / p90 / p95 / p99 latency, runtime policy and detector configuration details.
+<p align="center">
+  <a href="https://onnxruntime.ai">
+    <img src="https://img.shields.io/badge/ONNX%20Runtime-CPU-EA580C.svg" alt="ONNX Runtime CPU">
+  </a>
+  <a href="assets/models/dbnet">
+    <img src="https://img.shields.io/badge/Text-DBNet-0EA5E9.svg" alt="DBNet for text">
+  </a>
+  <a href="assets/models/scrfd">
+    <img src="https://img.shields.io/badge/Face-SCRFD-1D4ED8.svg" alt="SCRFD for face">
+  </a>
+  <a href="assets/models/yolo">
+    <img src="https://img.shields.io/badge/Cloth-YOLO-DE28CE.svg" alt="YOLO for cloth">
+  </a>
+</p>
+
+<p align="center">
+  <img src="docs/assets/idet_logo.png" alt="IDet logo" width="75%">
+</p>
+
+
+## Overview
+
+**IDet** is a fast, production-oriented CPU-only C++ library for image detection pipelines, built on top of ONNX Runtime. Library supports three modes: `text detection` (DBNet / DBNet++ / PP-OCR-style models), `face detection` (SCRFD family) and `cloth detection` (YOLO family). Key features include tiled inference, polygon NMS, IOBinding (zero per-frame allocations), explicit threading and memory control, and reproducible performance profiles for modern multi-core CPUs. Demo application contains stunning performance report with p50 / p90 / p95 / p99 latency, runtime policy and detector configuration details.
 
 
 ## Why IDet?
@@ -53,6 +91,7 @@ This makes **IDet** suitable for:
     - [PaddleOCR](#paddleocr)
     - [DBNet / DBNet++](#dbnet--dbnet)
     - [SCRFD](#scrfd)
+    - [YOLO](#yolo)
     - [Compatibility Notes](#compatibility-notes)
 - [Command-line Options](#command-line-options)
     - [Required](#required)
@@ -64,6 +103,7 @@ This makes **IDet** suitable for:
 - [Quick Start](#quick-start)
     - [Text Detection](#text-detection)
     - [Face Detection](#face-detection)
+    - [Cloth Detection](#cloth-detection)
 - [Performance Report](#performance-report)
 - [Performance Tuning Guide](#performance-tuning-guide)
 - [IOBinding Deep-Dive](#iobinding-deep-dive)
@@ -103,7 +143,7 @@ This makes **IDet** suitable for:
 
 ### Out of scope
 - OCR text recognition and language models
-- face recognition / embeddings / tracking
+- ROI recognition / embeddings / tracking
 - dataset labeling / training pipelines
 - GUI applications
 
@@ -185,16 +225,30 @@ The toolchain is designed to be **sourced once per terminal session**. It sets u
     source toolchain/tc.sh
     tc_list
     ```
-    ![tc_list](docs/assets/tc_profile_list.png)
+    <table align="center" width="70%">
+      <tr>
+      <td align="center">
+      <img src="docs/assets/tc_profile_list.png" alt="tc_list" width="100%">
+      <br>
+      <sub>Terminal screenshot of a build preset selection menu showing Clang/GCC debug, perf, and release configurations, with <code>gcc-perf</code> selected.</sub>
+      </td>
+      </tr>
+    </table>
 
 2) Choose specific profile with related configuration:
     ```bash
     source toolchain/activate.sh <profile>
-
-    # Display selected configuration:
-    tc_print
+    tc_print # display selected configuration
     ```
-    ![tc_print](docs/assets/tc_profile_print.png)
+    <table align="center" width="70%">
+      <tr>
+      <td align="center">
+      <img src="docs/assets/tc_profile_print.png" alt="tc_profile_print" width="100%">
+      <br>
+      <sub>Terminal screenshot of a toolchain profile summary for the selected <code>gcc-perf</code> configuration, listing resolved paths, detected tool versions, compiler availability, and runtime settings.</sub>
+      </td>
+      </tr>
+    </table>
 
 3) Next you can explore `scripts` directory located in root of project to run specific case you want. See detailed description [below](#install--build) about building and testing library. The table below lists some of the scripts and their capabilities:
 
@@ -207,6 +261,7 @@ The toolchain is designed to be **sourced once per terminal session**. It sets u
     | [include_cleaner.sh](scripts/include_cleaner.sh) | `idet-inc-clean` | Include directives cleaner util |
     | [run_idet_text.sh](scripts/run_idet_text.sh) | `idet-text` | Run text detection on test input data |
     | [run_idet_face.sh](scripts/run_idet_face.sh) | `idet-face` | Run face detection on test input data |
+    | [run_idet_cloth.sh](scripts/run_idet_cloth.sh) | `idet-cloth` | Run cloth detection on test input data |
 
     > 💡 **Note:** Every script supports `-h` / `--help` with usage details and available flags.
 
@@ -418,6 +473,13 @@ There are pre-converted **SCRFD** face detectors on the Hugging Face Hub: **[ykk
 
 - `scrfd_500m_bnkps.onnx`
 
+### YOLO
+
+There are ready-to-use **YOLOv8** ONNX models for **clothing / fashion detection** on the Hugging Face Hub: **[louisJLN/yolo8-fashionpedia](https://huggingface.co/louisJLN/yolo8-fashionpedia/tree/main)**. These models cover a broad set of clothing and accessory categories, making them suitable for general-purpose **cloth detection**. The repo provides lightweight and larger Fashionpedia-based checkpoints, including models you may place in `assets/models/yolo` directory:
+
+- `yolov8n-fashionpedia-1.onnx`
+- `yolov8s-fashionpedia-1.onnx` 
+
 ### Compatibility Notes
 
 - **Output often contains logits** → run with `--sigmoid 1`.
@@ -511,30 +573,60 @@ x0,y0 x1,y1 x2,y2 x3,y3
 ### Text Detection
 
 #### 1) Basic single-shot detection:
+
 ```bash
 scripts/run_idet_text.sh
 ```
-![single_text_mode](docs/assets/single_text_mode.png)
+
+<p align="center">
+  <img src="docs/assets/single_text_mode.png" alt="single_text_mode" width="70%">
+</p>
 
 #### 2) Detection with tiling:
+
 ```bash
 scripts/run_idet_text.sh tile
 ```
-![tiled_text_mode](docs/assets/tiled_text_mode.png)
+
+<p align="center">
+  <img src="docs/assets/tiled_text_mode.png" alt="tiled_text_mode" width="70%">
+</p>
 
 ### Face Detection
 
 #### 1) Basic single-shot detection:
+
 ```bash
 scripts/run_idet_face.sh
 ```
-![single_face_mode](docs/assets/single_face_mode.png)
+
+<p align="center">
+  <img src="docs/assets/single_face_mode.png" alt="single_face_mode" width="70%">
+</p>
 
 #### 2) Detection with tiling:
+
 ```bash
 scripts/run_idet_face.sh tile
 ```
-![tiled_face_mode](docs/assets/tiled_face_mode.png)
+
+<p align="center">
+  <img src="docs/assets/tiled_face_mode.png" alt="tiled_face_mode" width="70%">
+</p>
+
+### Cloth Detection
+
+#### 1) Basic single-shot detection:
+
+```bash
+scripts/run_idet_cloth.sh
+```
+
+#### 2) Detection with tiling:
+
+```bash
+scripts/run_idet_cloth.sh tile
+```
 
 
 ## Performance Report
@@ -547,20 +639,44 @@ The **demo CLI app** (`idet_app`) can run a warmup + benchmark loop and prints a
 - **Affinity verification** and the allowed CPU mask (when runtime policy / binding is enabled)
 - **OpenMP affinity** (effective threads, environment variables)
 
-![policy_config](docs/assets/policy_config.png)
+<table align="center" width="70%">
+  <tr>
+    <td align="center">
+      <img src="docs/assets/policy_config.png" alt="policy_config" width="100%">
+      <br>
+      <sub>Terminal screenshot of detected CPU topology and OpenMP runtime configuration, showing socket and core counts, available CPU IDs, libomp runtime details, and active threading settings.</sub>
+    </td>
+  </tr>
+</table>
 
 ### Configuration
 
 Effective application and detector configuration:
 
-![detector_config](docs/assets/detector_config.png)
+<table align="center" width="70%">
+  <tr>
+    <td align="center">
+      <img src="docs/assets/detector_config.png" alt="detector_config" width="100%">
+      <br>
+      <sub>Terminal screenshot of the detector and application configuration, showing the selected task and engine, input/output paths, benchmarking parameters, inference thresholds, tiling settings, and runtime threading options.</sub>
+    </td>
+  </tr>
+</table>
 
 ### Results
 
 - Progress bars for warmup and benchmark loops
 - Benchmark results
 
-![bench_results](docs/assets/bench_results.png)
+<table align="center" width="70%">
+  <tr>
+    <td align="center">
+      <img src="docs/assets/bench_results.png" alt="bench_results" width="100%">
+      <br>
+      <sub>Terminal screenshot of benchmark execution and results, showing warmup and measurement progress bars together with latency statistics, percentile metrics, iteration count, estimated FPS, and basic application output.</sub>
+    </td>
+  </tr>
+</table>
 
 
 ## Performance Tuning Guide
@@ -646,6 +762,7 @@ This project uses such libraries / frameworks:
 Supported model families:
 - **DBNet** / **DBNet++** / **PP-OCR** (text detection)
 - **SCRFD** (face detection)
+- **YOLO** (cloth detection)
 
 ---
 
