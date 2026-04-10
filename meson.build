@@ -16,42 +16,43 @@ project('IDet', ['c', 'cpp'],
 
 fs = import('fs')
 cpp = meson.get_compiler('cpp')
-cc  = meson.get_compiler('c')
-sys      = host_machine.system()
-cpu_fam  = host_machine.cpu_family()
-endian   = host_machine.endian()
+cc = meson.get_compiler('c')
 
-is_cross  = meson.is_cross_build()
+sys = host_machine.system()
+cpu_fam = host_machine.cpu_family()
+endian = host_machine.endian()
+
+is_cross = meson.is_cross_build()
 is_darwin = (sys == 'darwin')
-is_linux  = (sys == 'linux')
-is_clang  = (cpp.get_id() == 'clang' or cpp.get_id() == 'apple-clang')
-is_gcc    = (cpp.get_id() == 'gcc')
+is_linux = (sys == 'linux')
+is_clang = (cpp.get_id() == 'clang' or cpp.get_id() == 'apple-clang')
+is_gcc = (cpp.get_id() == 'gcc')
 
 # ------------------------------------------------------------------------
 # Project options (see meson_options.txt)
 # ------------------------------------------------------------------------
 
-idet_libtype   = get_option('idet_libtype')
-idet_exe_link  = get_option('idet_exe_link')
+idet_libtype = get_option('idet_libtype')
+idet_exe_link = get_option('idet_exe_link')
 is_system_ort = get_option('onnxruntime_system')
-ort_inc_dir    = get_option('onnxruntime_inc')
-ort_lib_dir    = get_option('onnxruntime_lib')
-embed_models  = get_option('embed_onnx_models')
-cpu_opt        = get_option('cpu_opt')
-fast_math     = get_option('fast_math')
-thinlto       = get_option('thinlto')
-use_openmp    = get_option('use_openmp')
-use_numa      = get_option('use_numa')
-rpath_extra    = get_option('install_rpath_extra')
-strict_warn   = get_option('strict_warnings')
-build_tests   = get_option('build_tests')
+ort_inc_dir = get_option('onnxruntime_inc')
+ort_lib_dir = get_option('onnxruntime_lib')
+embed_models = get_option('embed_onnx_models')
+cpu_opt = get_option('cpu_opt')
+fast_math = get_option('fast_math')
+thinlto = get_option('thinlto')
+use_openmp = get_option('use_openmp')
+use_numa = get_option('use_numa')
+rpath_extra = get_option('install_rpath_extra')
+strict_warn = get_option('strict_warnings')
+build_tests = get_option('build_tests')
 
 # ------------------------------------------------------------------------
-# Compile / link flags
+# Compile / link flags 
 # ------------------------------------------------------------------------
 
 cxx_args = []
-ld_args  = []
+ld_args = []
 
 # Smaller/faster binaries via better dead-code elimination
 foreach f : ['-ffunction-sections', '-fdata-sections']
@@ -145,7 +146,7 @@ endif
 message('Run-time dependencies...')
 
 # We will treat deps headers as system to keep static analysis focused on project code!
-# dependency(...) : add flag `include_type: 'system'`
+#         dependency(...) : add flag `include_type: 'system'`
 # declare_dependency(...) : wrap in `.as_system('system')`
 
 # --- OpenCV (system) ---
@@ -196,7 +197,7 @@ if use_numa
     numa_dep = dependency('numa', required: false, include_type: 'system')
     if numa_dep.found()
         add_project_arguments('-DUSE_LIBNUMA', language: 'cpp')
-    else
+    else 
         warning('NUMA not found in system and will be excluded from the build!')
     endif
 endif
@@ -262,17 +263,17 @@ if not ort_dep.found()
             include_directories(join_paths(ort_inc_dir, 'onnxruntime', 'core', 'session'), is_system: true),
         ]
         ort_lib = cpp.find_library('onnxruntime', dirs: [ort_lib_dir], required: true)
-
+        
         ort_dep = declare_dependency(
             dependencies: [ort_lib],
             include_directories: ort_inc,
         ).as_system('system')
-
+        
         ort_source = 'manual -> ' + ort_lib_dir
     else
         # 3) fallback: build ORT from subprojects via CMake module
         warning('ONNX Runtime not found in system (or disabled) and manual paths are empty. Falling back to building from subprojects/onnxruntime (CMake)')
-
+        
         ort_sp = subproject('onnxruntime')
         ort_dep = ort_sp.get_variable('onnxruntime_dep')
         ort_link_depends = [ort_sp.get_variable('onnxruntime_stamp')]
@@ -281,12 +282,13 @@ if not ort_dep.found()
         if not ort_dep.found()
             error('ONNX Runtime not found. Install it, or set -Donnxruntime_inc/-Donnxruntime_lib')
         endif
-
+        
         ort_lib_dir = join_paths(meson.project_build_root(), 'subprojects', 'onnxruntime', '__install', 'lib')
     endif
 else
     is_ort_installed_by_sys = true
 endif
+
 
 # ------------------------------------------------------------------------
 # RPATH (build + install)
@@ -312,11 +314,11 @@ if rpath_extra != ''
     rpaths += rpath_extra.split(':')
 endif
 
-build_rpath   = ''
+build_rpath = ''
 install_rpath = ''
 
 if rpaths.length() > 0
-    build_rpath   = ':'.join(rpaths)
+    build_rpath = ':'.join(rpaths)
     install_rpath = ':'.join(rpaths)
 endif
 
@@ -374,7 +376,7 @@ summary(
         'CPU family' : cpu_fam,
         'Endian'     : endian,
 
-        # Host vs build machines
+        # Host vs build machines 
         'Build machine' : '@0@/@1@'.format(build_machine.system(), build_machine.cpu_family()),
         'Host machine'  : '@0@/@1@'.format(host_machine.system(), host_machine.cpu_family()),
 
@@ -401,9 +403,9 @@ summary(
         'link_args'    : ld_args,
         'cpu_opt'      : cpu_opt,
     },
-    list_sep : ' ',
-    section  : 'Build options',
-    bool_yn  : true,
+    list_sep: ' ',
+    section : 'Build options',
+    bool_yn : true,
 )
 
 summary(
