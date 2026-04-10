@@ -4,7 +4,7 @@ project('indicators', 'cpp',
         'cpp_std=c++17',
         'optimization=3',
         'buildtype=release',
-    ]
+    ],
 )
 
 indicators_inc = include_directories('include', is_system: true)
