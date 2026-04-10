@@ -136,9 +136,6 @@ Status DetectorConfig::validate() const noexcept {
     if (infer.min_roi_size_w < 0 || infer.min_roi_size_h < 0)
         return Status::Invalid("DetectorConfig: min_roi_size must be >= 0");
 
-    if (infer.bind_io && (infer.fixed_input_dim.rows <= 0 || infer.fixed_input_dim.cols <= 0))
-        return Status::Invalid("DetectorConfig: bind_io requires fixed_input_dim (HxW) with values > 0");
-
     if (engine == EngineKind::DBNet) {
         if (!(infer.bin_thresh > 0.f && infer.bin_thresh < 1.f))
             return Status::Invalid("DBNet: bin_thresh must be in (0,1)");
@@ -301,7 +298,6 @@ class DetectorImpl final {
         if (!bm_res.ok()) return Result<VecQuad>::Err(bm_res.status());
         const cv::Mat& bgr = std::move(bm_res.value().mat());
 
-        const bool tiled = (cfg_.infer.tiles_dim.rows * cfg_.infer.tiles_dim.cols) > 1;
         const bool want_bound = force_bound || (cfg_.infer.bind_io && binding_ready_);
 
         if (want_bound && !binding_ready_) {
@@ -309,6 +305,8 @@ class DetectorImpl final {
                                                             ? "detect_bound: binding not prepared"
                                                             : "detect: bind_io enabled but binding not prepared"));
         }
+
+        const bool tiled = (cfg_.infer.tiles_dim.rows * cfg_.infer.tiles_dim.cols) > 1;
 
         Result<std::vector<algo::Detection>> r =
             tiled ? run_tiled_(bgr, want_bound, ctx, explicit_bound_call) : run_single_(bgr, want_bound, ctx);

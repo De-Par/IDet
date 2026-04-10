@@ -22,7 +22,6 @@
 #include <cstdlib>
 #include <iostream>
 #include <string>
-#include <thread>
 
 #if defined(__linux__)
     #include <sched.h>
@@ -32,6 +31,8 @@
 #if defined(_OPENMP)
     #include <dlfcn.h>
     #include <omp.h>
+#else
+    #include <thread>
 #endif
 
 namespace idet::platform {
@@ -116,7 +117,7 @@ void dump_openmp_runtime() {
 #if !defined(_OPENMP)
     std::cout << "\n[OMP] OpenMP is not enabled in this build (_OPENMP not defined)\n" << std::flush;
 #else
-    std::cout << "=== OpenMP Runtime ===" << "\n";
+    std::cout << "\n=== OpenMP Runtime ===\n";
     std::cout << "_OPENMP = " << std::to_string(_OPENMP) << "\n";
 
     // Best-effort: resolve which shared library provides omp_* symbols.
@@ -144,7 +145,7 @@ void dump_openmp_runtime() {
     #if _OPENMP >= 200805
     std::cout << "omp_get_max_active_levels = " << omp_get_max_active_levels() << "\n";
     #endif
-    std::cout << std::flush;
+    std::cout << "\n" << std::flush;
 #endif
 }
 

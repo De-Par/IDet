@@ -77,49 +77,6 @@ namespace {
 // ----------------------------- tiny helpers -----------------------------
 
 /**
- * @brief Formats a sorted list of IDs into a compact range representation.
- *
- * @details
- * Example: [0,1,2,3,8,10,11] -> "0-3,8,10-11"
- */
-static std::string format_id_list(const std::vector<int>& ids_raw) {
-    if (ids_raw.empty()) return "none";
-
-    std::vector<int> v = ids_raw;
-    std::sort(v.begin(), v.end());
-    v.erase(std::unique(v.begin(), v.end()), v.end());
-
-    std::ostringstream oss;
-    int range_start = v[0];
-    int prev = v[0];
-
-    auto flush_range = [&](bool first) {
-        if (!first) oss << ",";
-        if (range_start == prev)
-            oss << range_start;
-        else
-            oss << range_start << "-" << prev;
-    };
-
-    bool first = true;
-    for (std::size_t i = 1; i < v.size(); ++i) {
-        const int x = v[i];
-        if (x == prev + 1) {
-            prev = x;
-            continue;
-        }
-        flush_range(first);
-        first = false;
-        range_start = prev = x;
-    }
-    flush_range(first);
-
-    return oss.str();
-}
-
-#if defined(__linux__)
-
-/**
  * @brief Returns a copy of the string with leading/trailing ASCII whitespace removed.
  *
  * @note
@@ -177,6 +134,49 @@ static std::vector<int> parse_cpu_list_string(const std::string& raw) {
     ids.erase(std::unique(ids.begin(), ids.end()), ids.end());
     return ids;
 }
+
+/**
+ * @brief Formats a sorted list of IDs into a compact range representation.
+ *
+ * @details
+ * Example: [0,1,2,3,8,10,11] -> "0-3,8,10-11"
+ */
+static std::string format_id_list(const std::vector<int>& ids_raw) {
+    if (ids_raw.empty()) return "none";
+
+    std::vector<int> v = ids_raw;
+    std::sort(v.begin(), v.end());
+    v.erase(std::unique(v.begin(), v.end()), v.end());
+
+    std::ostringstream oss;
+    int range_start = v[0];
+    int prev = v[0];
+
+    auto flush_range = [&](bool first) {
+        if (!first) oss << ",";
+        if (range_start == prev)
+            oss << range_start;
+        else
+            oss << range_start << "-" << prev;
+    };
+
+    bool first = true;
+    for (std::size_t i = 1; i < v.size(); ++i) {
+        const int x = v[i];
+        if (x == prev + 1) {
+            prev = x;
+            continue;
+        }
+        flush_range(first);
+        first = false;
+        range_start = prev = x;
+    }
+    flush_range(first);
+
+    return oss.str();
+}
+
+#if defined(__linux__)
 
 /**
  * @brief Reads a single integer from a sysfs file (first line).
