@@ -14,17 +14,17 @@ idet_lib_source = [
 # Additional defines
 idet_build_defs = []
 
-# Embed onnx models into final binary
+# Embed ONNX as byte arrays
 if embed_models
     models_root = join_paths(meson.project_source_root(), 'assets', 'models')
 
-    # Path to script, which convert binary to `.cpp` file
-    script_path = join_paths(meson.project_source_root(), 'tools', 'bin_to_cpp.py')
+    # Path to script that converts a binary file into a `.cpp` file
+    script_path = join_paths(meson.project_source_root(), 'tools', 'onnx_to_cpp_byte_array.py')
     if not fs.exists(script_path)
-        error('Script for binary convertion not found at ' + script_path)
+        error('Script for binary conversion not found at ' + script_path)
     endif
 
-    # Python3 interpreter
+    # Python interpreter
     python = import('python').find_installation('python3', required: false)
     if not python.found()
         error('python3 not found in system for generating embedded model sources')
