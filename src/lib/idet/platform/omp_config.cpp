@@ -22,6 +22,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <string>
+#include <thread>
 
 #if defined(__linux__)
     #include <sched.h>
@@ -31,8 +32,6 @@
 #if defined(_OPENMP)
     #include <dlfcn.h>
     #include <omp.h>
-#else
-    #include <thread>
 #endif
 
 namespace idet::platform {
