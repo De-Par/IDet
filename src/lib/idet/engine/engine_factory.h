@@ -8,9 +8,13 @@
  * The factory examines the provided @ref idet::DetectorConfig and instantiates a
  * concrete @ref idet::engine::IEngine implementation.
  *
- * Engine selection rules (high-level):
- * - Text task / DBNet engine  -> DBNet backend
- * - Face task / SCRFD engine  -> SCRFD backend
+ * Engine selection rules (high-level, see registry in engine_factory.cpp):
+ * - Text  task / DBNet engine -> DBNet backend
+ * - Face  task / SCRFD engine -> SCRFD backend
+ * - Cloth task / Yolo  engine -> YOLO backend (in-graph or raw NMS)
+ *
+ * Adding a new family is one entry in the registry plus a new @ref IEngine subclass —
+ * no changes to this dispatch logic, no new switch arms, no plumbing in @c idet.cpp.
  *
  * The factory is responsible for basic configuration validation and for returning
  * a structured error via @ref idet::Status / @ref idet::Result instead of throwing.

@@ -18,6 +18,7 @@
 #include <array>
 #include <cmath>
 #include <exception>
+#include <limits>
 #include <new>
 #include <stdexcept>
 #include <string>
@@ -355,7 +356,22 @@ std::vector<algo::Detection> YOLO::decode_raw_buffer(const float* data, std::int
         return data[static_cast<std::size_t>(i) * static_cast<std::size_t>(feat) + static_cast<std::size_t>(c)];
     };
 
-    dets.reserve(256);
+    // Logit-space precomputed threshold so that, in apply_sigmoid mode, we can short-circuit
+    // anchors whose logit score is already below the threshold without paying for exp(). We
+    // do this only when objectness is NOT present: if objectness is folded into the score via
+    // multiplication, the per-anchor threshold cannot be transformed into a single logit cut.
+    // sigmoid is monotonic, so for the apply_sigmoid && !has_objectness branch the result is
+    // bit-identical to the previous code path for anchors that pass; we just skip exp() calls
+    // for anchors that would have been rejected anyway.
+    const bool fast_logit = apply_sigmoid && !has_objectness && score_thr > 0.0f && score_thr < 1.0f;
+    const float logit_thr = fast_logit ? std::log(score_thr / (1.0f - score_thr))
+                                       : -std::numeric_limits<float>::infinity();
+
+    // Heuristic reserve: we typically keep < ~1% of anchors. Use a small fraction of N with
+    // a sane floor/ceiling so we avoid both grow-on-every-push and over-allocation for tiny N.
+    const std::size_t reserve_n = std::min<std::size_t>(
+        std::max<std::size_t>(static_cast<std::size_t>(N / 64), 32), 1024);
+    dets.reserve(reserve_n);
 
     for (std::int64_t i = 0; i < N; ++i) {
         // Class score = max(class scores), optionally sigmoid for logit-style exports.
@@ -364,6 +380,9 @@ std::vector<algo::Detection> YOLO::decode_raw_buffer(const float* data, std::int
             const float v_c = get(i, cls_off + c);
             if (v_c > best_cls) best_cls = v_c;
         }
+        // Fast-path: skip exp() when the logit is already below threshold (sigmoid is monotonic).
+        if (fast_logit && best_cls < logit_thr) continue;
+
         float score = apply_sigmoid ? sigmoid_(best_cls) : best_cls;
         if (has_objectness) {
             const float obj = get(i, 4);

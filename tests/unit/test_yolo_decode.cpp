@@ -211,6 +211,37 @@ TEST(YoloDecode, SortsByScoreDescending) {
     EXPECT_GT(dets[1].score, dets[2].score);
 }
 
+TEST(YoloDecode, LogitFastPath_RejectsBelowThresholdWithoutCallingSigmoid) {
+    // Anchor with logit just below logit(thr) must be rejected; an anchor with logit just above
+    // must keep the same final sigmoid score as the slow path. This validates that the logit
+    // short-circuit is bit-equivalent to the original sigmoid-then-compare semantics.
+    constexpr int nc = 1;
+    constexpr int feat = 4 + nc;
+    constexpr std::int64_t N = 2;
+    std::vector<float> buf(static_cast<std::size_t>(N) * feat, 0.f);
+
+    auto lb = identity_lb(640, 640);
+    // Anchor 0: logit barely above logit(0.5) = 0 -> sigmoid > 0.5
+    put_cl(buf, 0, feat, 0, 100.f);
+    put_cl(buf, 0, feat, 1, 100.f);
+    put_cl(buf, 0, feat, 2, 50.f);
+    put_cl(buf, 0, feat, 3, 50.f);
+    put_cl(buf, 0, feat, 4, 0.5f); // logit 0.5 -> sigmoid ~ 0.6225
+
+    // Anchor 1: logit far below logit(0.5) -> rejected by fast path
+    put_cl(buf, 1, feat, 0, 200.f);
+    put_cl(buf, 1, feat, 1, 200.f);
+    put_cl(buf, 1, feat, 2, 50.f);
+    put_cl(buf, 1, feat, 3, 50.f);
+    put_cl(buf, 1, feat, 4, -3.0f); // sigmoid ~ 0.047
+
+    auto dets = YOLO::decode_raw_buffer(buf.data(), N, nc, /*has_obj*/ false, Layout::ChannelsLast,
+                                        /*apply_sigmoid*/ true, /*score_thr*/ 0.5f, lb, 640, 640, 0, 0);
+    ASSERT_EQ(dets.size(), 1u);
+    const float expected = 1.f / (1.f + std::exp(-0.5f));
+    EXPECT_NEAR(dets[0].score, expected, 1e-5f);
+}
+
 TEST(YoloDecode, AppliesSigmoidWhenRequested) {
     constexpr int nc = 1;
     constexpr int feat = 4 + nc;

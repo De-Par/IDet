@@ -502,7 +502,7 @@ There are ready-to-use **YOLOv8** ONNX models for **clothing / fashion detection
 | Flag | Type | Default | Mode | Description |
 |:---|:---:|:---:|:---:|:---|
 | `--model` | STR | — | All | ONNX model path |
-| `--mode` | STR | — | All | Detector mode: `text` \| `face` |
+| `--mode` | STR | — | All | Detector mode: `text` \| `face` \| `cloth` |
 | `--image` | STR | — | All | Input image path |
 
 ### Generic

@@ -98,7 +98,7 @@ inline bool parse_grid_int(std::string_view s_in, idet::GridSpec& g) {
 
     const auto xpos = s.find('x');
     if (xpos == std::string::npos) return false;
-    if (s.find('x', xpos + 1) != std::string::npos) return false; // строго один разделитель
+    if (s.find('x', xpos + 1) != std::string::npos) return false; // exactly one separator
 
     const auto lhs = trim_view(std::string_view{s}.substr(0, xpos));
     const auto rhs = trim_view(std::string_view{s}.substr(xpos + 1));
@@ -119,6 +119,8 @@ inline idet::EngineKind get_default_engine(idet::Task t) {
         return idet::EngineKind::DBNet;
     case idet::Task::Face:
         return idet::EngineKind::SCRFD;
+    case idet::Task::Cloth:
+        return idet::EngineKind::Yolo;
     default:
         return idet::EngineKind::None;
     }
@@ -127,6 +129,7 @@ inline idet::EngineKind get_default_engine(idet::Task t) {
 inline idet::Task string_to_task(std::string_view task_s) {
     if (task_s == "text") return idet::Task::Text;
     if (task_s == "face") return idet::Task::Face;
+    if (task_s == "cloth") return idet::Task::Cloth;
     return idet::Task::None;
 }
 
@@ -138,6 +141,8 @@ inline std::string task_to_string(idet::Task t) {
         return "text";
     case idet::Task::Face:
         return "face";
+    case idet::Task::Cloth:
+        return "cloth";
     default:
         return "unknown";
     }
@@ -151,6 +156,8 @@ inline std::string engine_to_string(idet::EngineKind e) {
         return "dbnet";
     case idet::EngineKind::SCRFD:
         return "scrfd";
+    case idet::EngineKind::Yolo:
+        return "yolo";
     default:
         return "unknown";
     }
@@ -165,10 +172,10 @@ inline std::string grid_to_string(const idet::GridSpec& g, bool treat_zeros_as_a
 
 static void print_usage(const char* app) {
     std::cerr << "Usage:\n"
-              << "  " << app << " --model <path.onnx> --mode [text|face] --image <path> [options]\n\n"
+              << "  " << app << " --model <path.onnx> --mode [text|face|cloth] --image <path> [options]\n\n"
               << "Required:\n"
               << "  --model             STR      ONNX model path\n"
-              << "  --mode              STR      Detector mode: text | face\n"
+              << "  --mode              STR      Detector mode: text | face | cloth\n"
               << "  --image             STR      Input image path\n\n"
               << "Generic:\n"
               << "  --is_draw           0|1      Draw image detections. Default: 1\n"
@@ -205,7 +212,9 @@ static void print_usage(const char* app) {
               << "  " << app
               << " --mode text --model det.onnx --image img.png --tiles_rc 2x2 --tile_overlap 0.1 --tile_omp 4\n"
               << "  " << app
-              << " --mode face --model scrfd.onnx --image img.jpg --threads_intra 2 --threads_inter 1\n\n";
+              << " --mode face --model scrfd.onnx --image img.jpg --threads_intra 2 --threads_inter 1\n"
+              << "  " << app
+              << " --mode cloth --model yolov8n.onnx --image img.jpg --box_thresh 0.25 --nms_iou 0.5\n\n";
 }
 
 inline bool missing_value(const char* flag) {
@@ -330,7 +339,7 @@ bool parse_arguments(int argc, char** argv, AppConfig& ac, idet::DetectorConfig&
             if (!next(v)) return missing_value("--mode");
             v = lower_copy(trim_view(v));
             dc.task = string_to_task(v);
-            if (dc.task == idet::Task::None) return invalid_value("--mode", v, "expected text|face");
+            if (dc.task == idet::Task::None) return invalid_value("--mode", v, "expected text|face|cloth");
             dc.engine = get_default_engine(dc.task);
 
         } else if (a == "--image") {

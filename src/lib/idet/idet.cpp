@@ -230,11 +230,14 @@ class DetectorImpl final {
         if (cfg.engine != cfg_.engine) return Status::Invalid("update_config: engine cannot change");
         if (cfg.model_path != cfg_.model_path) return Status::Invalid("update_config: model_path cannot change");
 
+        // Runtime is treated as immutable (must match engine.cpp::check_hot_update_).
+        // Any change here would require recreating the detector to reapply ORT threadpool /
+        // affinity / NUMA policy.
         const auto& a = cfg_.runtime;
         const auto& b = cfg.runtime;
         if (b.ort_intra_threads != a.ort_intra_threads || b.ort_inter_threads != a.ort_inter_threads ||
             b.tile_omp_threads != a.tile_omp_threads || b.soft_mem_bind != a.soft_mem_bind ||
-            b.suppress_opencv != a.suppress_opencv) {
+            b.numa_mem_policy != a.numa_mem_policy || b.suppress_opencv != a.suppress_opencv) {
             return Status::Invalid("update_config: runtime cannot change (recreate detector)");
         }
 
