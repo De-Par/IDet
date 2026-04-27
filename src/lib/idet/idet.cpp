@@ -99,23 +99,39 @@ static inline VecQuad to_public_quads_(const std::vector<algo::Detection>& dets)
 } // namespace
 
 /// @brief Builds a minimal detector configuration for a given task and model path.
+///
+/// The default engine for each task is resolved through the engine registry, so adding
+/// a new domain only requires registering an entry in @ref engine_factory.cpp. Per-task
+/// defaults that are not part of the generic config (e.g. AABB-vs-polygon IoU) are
+/// still set here, since they are application-level rather than engine-level.
 DetectorConfig DetectorConfig::setup(Task task, std::string model_path) {
     DetectorConfig c;
     c.model_path = std::move(model_path);
-    if (task == Task::Text) {
-        c.task = Task::Text;
-        c.engine = EngineKind::DBNet;
-        // default: prefer exact polygon IoU for text (quads can be rotated)
+
+    c.task = task;
+    c.engine = engine::engine_default_for_task(task);
+
+    switch (task) {
+    case Task::Text:
+        // Text quads can be rotated -> exact polygon IoU is more accurate.
         c.infer.use_fast_iou = false;
-    } else if (task == Task::Face) {
-        c.task = Task::Face;
-        c.engine = EngineKind::SCRFD;
-        // default: faces are rectangles in this pipeline -> fast AABB IoU is usually enough
+        break;
+    case Task::Face:
+        // Faces are axis-aligned rectangles in this pipeline -> fast AABB IoU suffices.
         c.infer.use_fast_iou = true;
-    } else {
+        break;
+    case Task::Cloth:
+        // YOLO outputs are axis-aligned rectangles; AABB IoU matches NMS conventions used
+        // by the YOLO family.
+        c.infer.use_fast_iou = true;
+        // YOLO conf threshold conventions are slightly lower than DBNet/SCRFD defaults.
+        c.infer.box_thresh = 0.25f;
+        break;
+    default:
         c.task = Task::None;
         c.engine = EngineKind::None;
         c.infer.use_fast_iou = false;
+        break;
     }
     return c;
 }
@@ -137,18 +153,9 @@ Status DetectorConfig::validate() const noexcept {
     if (infer.min_roi_size_w < 0 || infer.min_roi_size_h < 0)
         return Status::Invalid("DetectorConfig: min_roi_size must be >= 0");
 
-    if (engine == EngineKind::DBNet) {
-        if (!(infer.bin_thresh > 0.f && infer.bin_thresh < 1.f))
-            return Status::Invalid("DBNet: bin_thresh must be in (0,1)");
-        if (!(infer.box_thresh > 0.f && infer.box_thresh < 1.f))
-            return Status::Invalid("DBNet: box_thresh must be in (0,1)");
-        if (!(infer.unclip > 0.f)) return Status::Invalid("DBNet: unclip must be > 0");
-    } else if (engine == EngineKind::SCRFD) {
-        if (!(infer.box_thresh > 0.f && infer.box_thresh < 1.f))
-            return Status::Invalid("SCRFD: box_thresh must be in (0,1)");
-    }
-
-    return Status::Ok();
+    // Engine-specific validation lives in the engine registry to keep this file
+    // independent of any particular engine family. See engine_factory.cpp.
+    return engine::engine_validate_specific(*this);
 }
 
 namespace detail {

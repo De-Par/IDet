@@ -29,6 +29,7 @@
 
 #include "algo/geometry.h"
 #include "internal/chw_preprocess.h"
+#include "internal/letterbox.h"
 
 #include <algorithm>
 #include <array>
@@ -138,11 +139,19 @@ Status DBNet::update_hot(const DetectorConfig& next) noexcept {
 }
 
 /**
- * @brief Compute network input geometry for preprocessing.
+ * @brief Compute network input geometry (target size) for preprocessing.
  *
  * @details
- * - If force_w/force_h are provided, uses them (aligned up to multiple of 32).
- * - Otherwise performs "max side" downscale to @ref max_img_ and aligns both dims to 32.
+ * Computes only the network input dimensions; actual letterbox parameters (uniform scale
+ * and padding) are derived later inside @ref fill_input_chw_ based on the source size.
+ * - If @p force_w/@p force_h are provided, uses them (aligned up to multiple of 32).
+ * - Otherwise applies a "max side <= max_img" downscale that preserves aspect, then aligns
+ *   both dims to multiples of 32 to satisfy the backbone's constraints.
+ *
+ * The returned geometry is intentionally aspect-distorted relative to (orig_w, orig_h):
+ * the input buffer is rectangular and aligned, while the source content is letterboxed
+ * inside it without distortion. This is what allows the model to see the same aspect
+ * ratio it was trained on.
  *
  * @note Alignment (32) matches common DBNet-family backbones with downsample/upsample constraints.
  */
@@ -153,42 +162,46 @@ DBNet::NetGeom DBNet::make_geom_(int orig_w, int orig_h, int force_w, int force_
     if (force_w > 0 && force_h > 0) {
         g.in_w = align_up_(force_w, align);
         g.in_h = align_up_(force_h, align);
-        g.sx = (orig_w > 0) ? (float)g.in_w / (float)orig_w : 1.f;
-        g.sy = (orig_h > 0) ? (float)g.in_h / (float)orig_h : 1.f;
         return g;
     }
 
-    int tw = orig_w;
-    int th = orig_h;
+    int tw = std::max(1, orig_w);
+    int th = std::max(1, orig_h);
 
     if (max_img_ > 0) {
-        const int max_side = std::max(orig_w, orig_h);
+        const int max_side = std::max(tw, th);
         if (max_side > max_img_) {
             const float scale = (float)max_img_ / (float)max_side;
-            tw = std::max(1, (int)std::lround(orig_w * scale));
-            th = std::max(1, (int)std::lround(orig_h * scale));
+            tw = std::max(1, (int)std::lround(tw * scale));
+            th = std::max(1, (int)std::lround(th * scale));
         }
     }
 
     g.in_w = align_up_(tw, align);
     g.in_h = align_up_(th, align);
-    g.sx = (orig_w > 0) ? (float)g.in_w / (float)orig_w : 1.f;
-    g.sy = (orig_h > 0) ? (float)g.in_h / (float)orig_h : 1.f;
     return g;
 }
 
 /**
- * @brief Convert/resize a BGR U8 image into normalized CHW float32 tensor.
+ * @brief Letterbox + normalize a BGR U8 image into a CHW float32 tensor.
  *
  * @details
- * Uses ImageNet mean/std (converted to BGR order) and delegates to
- * @ref idet::internal::bgr_u8_to_chw_f32_resize.
+ * Performs an aspect-preserving resize-and-pad (letterbox) so the (in_w, in_h) buffer
+ * receives the source image scaled by a single uniform factor with the unused area zero-
+ * padded at the bottom-right. The returned @ref idet::internal::LetterboxInfo lets the
+ * decode side undo the transform with a single subtract-and-divide.
+ *
+ * The pixel values are then normalized with ImageNet mean/std (in BGR order, in 0..255 scale).
  */
-void DBNet::fill_input_chw_(float* dst, int in_w, int in_h, const cv::Mat& bgr) const {
+idet::internal::LetterboxInfo DBNet::fill_input_chw_(float* dst, int in_w, int in_h, const cv::Mat& bgr) const {
     // mean/std in BGR order (ImageNet)
     const float mean[3] = {0.406f * 255.0f, 0.456f * 255.0f, 0.485f * 255.0f};
     const float inv_std[3] = {1.0f / (0.225f * 255.0f), 1.0f / (0.224f * 255.0f), 1.0f / (0.229f * 255.0f)};
-    internal::bgr_u8_to_chw_f32_resize(bgr, in_w, in_h, dst, mean, inv_std);
+
+    cv::Mat lb_img;
+    auto info = internal::letterbox_bgr(bgr, lb_img, in_w, in_h, /*pad_value=*/0);
+    internal::bgr_u8_to_chw_f32_same_size(lb_img, dst, mean, inv_std);
+    return info;
 }
 
 /**
@@ -256,25 +269,48 @@ Result<idet::internal::TensorDesc> DBNet::probe_output_desc_(int in_h, int in_w)
 }
 
 /**
- * @brief Simple quad expansion around centroid (rect-like unclip).
+ * @brief Distance-offset polygon expansion (Vatti-style) for a rotated rectangle.
  *
  * @details
- * This is a fast approximation used to expand minAreaRect quads. It does not guarantee
- * constant-distance offset like polygon offsetting, but is cheap and deterministic.
+ * Approximates @c pyclipper polygon offset used by reference DBNet implementations.
+ * For a rotated rectangle of size @c (w, h):
+ *   D = w * h * unclip / (2 * (w + h))
+ * Each edge is moved outward by @c D, so the new size is @c (w + 2D, h + 2D) with the same
+ * center and angle. Long thin text quads expand much more in the short dimension (height)
+ * than in the long one (width), which matches the paper's intent and makes the text
+ * actually fit inside the resulting box.
+ *
+ * @par Why not just scale around the centroid?
+ * The legacy implementation multiplied each corner offset from the centroid by @c unclip.
+ * This is equivalent to @c (w * unclip, h * unclip) which over-extends the long side and
+ * leaves the short side too small. Visually: long horizontal text grew sideways into
+ * empty area while still cropping ascenders/descenders.
  */
 std::array<cv::Point2f, 4> DBNet::unclip_rect_like_(const std::array<cv::Point2f, 4>& box, float unclip) noexcept {
-    cv::Point2f c(0, 0);
-    for (auto& p : box) {
-        c.x += p.x;
-        c.y += p.y;
-    }
-    c.x *= 0.25f;
-    c.y *= 0.25f;
+    if (unclip <= 1.0f) return box;
 
-    const float k = (unclip <= 0.f) ? 1.f : unclip;
+    // Recover the rotated rect (center, size, angle) from the four points so we can extend
+    // its size along the rect's local axes rather than along the global x/y axes.
+    std::vector<cv::Point2f> pts(box.begin(), box.end());
+    cv::RotatedRect rr = cv::minAreaRect(pts);
+
+    const float w = rr.size.width;
+    const float h = rr.size.height;
+    if (w <= 1.0f || h <= 1.0f) return box;
+
+    // Vatti polygon offset distance for a rectangle: D = area * unclip / perimeter.
+    const float perimeter = 2.0f * (w + h);
+    const float D = (w * h * unclip) / perimeter;
+
+    rr.size.width = w + 2.0f * D;
+    rr.size.height = h + 2.0f * D;
+
+    cv::Point2f cv_pts[4];
+    rr.points(cv_pts);
+
     std::array<cv::Point2f, 4> out{};
     for (int i = 0; i < 4; ++i)
-        out[i] = c + (box[i] - c) * k;
+        out[i] = cv_pts[i];
     return out;
 }
 
@@ -292,10 +328,11 @@ std::array<cv::Point2f, 4> DBNet::unclip_rect_like_(const std::array<cv::Point2f
  * @note
  * The returned detections are sorted by descending score.
  */
-std::vector<algo::Detection> DBNet::postprocess_hw_(const float* prob_hw, int out_w, int out_h, int orig_w,
-                                                    int orig_h) const {
+std::vector<algo::Detection> DBNet::postprocess_hw_(const float* prob_hw, int out_w, int out_h, const NetGeom& geom,
+                                                    int orig_w, int orig_h) const {
     std::vector<algo::Detection> dets;
     if (!prob_hw || out_w <= 0 || out_h <= 0 || orig_w <= 0 || orig_h <= 0) return dets;
+    if (geom.in_w <= 0 || geom.in_h <= 0) return dets;
 
     cv::Mat prob(out_h, out_w, CV_32F, const_cast<float*>(prob_hw));
 
@@ -343,8 +380,18 @@ std::vector<algo::Detection> DBNet::postprocess_hw_(const float* prob_hw, int ou
     std::vector<std::vector<cv::Point>> contours;
     cv::findContours(bitmap, contours, cv::RETR_LIST, cv::CHAIN_APPROX_SIMPLE);
 
-    const float sx = (float)orig_w / (float)out_w;
-    const float sy = (float)orig_h / (float)out_h;
+    // Coordinate chain:
+    //   probmap (out_w x out_h)  --pm_to_in-->  network input (in_w x in_h)
+    //   network input            --letterbox_inverse-->  original image (orig_w x orig_h)
+    //
+    // The probmap is typically the same size as the network input but may be downsampled
+    // (e.g., 1/4) for some DBNet exports; we scale by (in_w/out_w, in_h/out_h) to recover
+    // network-input pixel coordinates, then apply the inverse letterbox (uniform scale + pad).
+    const float pm_to_in_x = (float)geom.in_w / (float)out_w;
+    const float pm_to_in_y = (float)geom.in_h / (float)out_h;
+    const float inv_scale = (geom.lb.scale > 0.0f) ? (1.0f / geom.lb.scale) : 1.0f;
+    const float pad_x = (float)geom.lb.pad_x;
+    const float pad_y = (float)geom.lb.pad_y;
 
     // Reuse a single scratch instance across all contours in this postprocess call. The internal
     // mask buffer is allocated lazily on the first contour and then reused; the per-contour
@@ -362,19 +409,27 @@ std::vector<algo::Detection> DBNet::postprocess_hw_(const float* prob_hw, int ou
         const float h = rr.size.height;
         if (w <= 1.f || h <= 1.f) continue;
 
-        const float ow = w * sx;
-        const float oh = h * sy;
+        // Convert size from probmap pixels to original-image pixels. The (1/scale) factor
+        // undoes the letterbox uniform scaling; pm_to_in_* compensates if probmap is at a
+        // different resolution than the network input.
+        const float ow = w * pm_to_in_x * inv_scale;
+        const float oh = h * pm_to_in_y * inv_scale;
         if (min_w_ > 0 && ow < (float)min_w_) continue;
         if (min_h_ > 0 && oh < (float)min_h_) continue;
 
         std::array<cv::Point2f, 4> box{};
         rr.points(box.data());
 
+        // Apply unclip in probmap space (it's a uniform expansion of the rotated rect, so
+        // the result is identical to applying it in network-input space, modulo a constant
+        // scale that is handled by the mapping below).
         if (unclip_ > 1.0f) box = unclip_rect_like_(box, unclip_);
 
         for (auto& p : box) {
-            p.x = clampf_(p.x * sx, 0.0f, (float)orig_w);
-            p.y = clampf_(p.y * sy, 0.0f, (float)orig_h);
+            const float xn = p.x * pm_to_in_x; // probmap -> network input
+            const float yn = p.y * pm_to_in_y;
+            p.x = clampf_((xn - pad_x) * inv_scale, 0.0f, (float)orig_w);
+            p.y = clampf_((yn - pad_y) * inv_scale, 0.0f, (float)orig_h);
         }
 
         algo::order_quad(box.data());
@@ -471,10 +526,10 @@ Result<std::vector<algo::Detection>> DBNet::infer_unbound(const cv::Mat& bgr) no
         const int ow = bgr.cols;
         const int oh = bgr.rows;
 
-        const NetGeom g = make_geom_(ow, oh, 0, 0);
+        NetGeom g = make_geom_(ow, oh, 0, 0);
 
         std::vector<float> in((std::size_t)3 * (std::size_t)g.in_h * (std::size_t)g.in_w);
-        fill_input_chw_(in.data(), g.in_w, g.in_h, bgr);
+        g.lb = fill_input_chw_(in.data(), g.in_w, g.in_h, bgr);
 
         auto rr = run_ort_unbound_(in.data(), in.size(), g.in_h, g.in_w);
         if (!rr.ok()) return Result<std::vector<algo::Detection>>::Err(rr.status());
@@ -492,7 +547,7 @@ Result<std::vector<algo::Detection>> DBNet::infer_unbound(const cv::Mat& bgr) no
                 Status::Unsupported("DBNet: cannot extract prob HW plane"));
         }
 
-        auto dets = postprocess_hw_(prob_hw, (int)desc.W, (int)desc.H, ow, oh);
+        auto dets = postprocess_hw_(prob_hw, (int)desc.W, (int)desc.H, g, ow, oh);
         return Result<std::vector<algo::Detection>>::Ok(std::move(dets));
     } catch (const std::bad_alloc&) {
         return Result<std::vector<algo::Detection>>::Err(Status::OutOfMemory("DBNet::infer_unbound: bad_alloc"));
@@ -519,9 +574,9 @@ Result<std::vector<algo::Detection>> DBNet::infer_bound(const cv::Mat& bgr, int 
 
         const int ow = bgr.cols;
         const int oh = bgr.rows;
-        const NetGeom g = make_geom_(ow, oh, bound_w_, bound_h_);
+        NetGeom g = make_geom_(ow, oh, bound_w_, bound_h_);
 
-        fill_input_chw_(c.in.data(), g.in_w, g.in_h, bgr);
+        g.lb = fill_input_chw_(c.in.data(), g.in_w, g.in_h, bgr);
 
         session_.Run(Ort::RunOptions{nullptr}, *c.binding);
 
@@ -532,7 +587,7 @@ Result<std::vector<algo::Detection>> DBNet::infer_bound(const cv::Mat& bgr, int 
                 Status::Unsupported("DBNet(bound): cannot extract prob HW plane"));
         }
 
-        auto dets = postprocess_hw_(prob_hw, bound_out_w_, bound_out_h_, ow, oh);
+        auto dets = postprocess_hw_(prob_hw, bound_out_w_, bound_out_h_, g, ow, oh);
         return Result<std::vector<algo::Detection>>::Ok(std::move(dets));
     } catch (const std::bad_alloc&) {
         return Result<std::vector<algo::Detection>>::Err(Status::OutOfMemory("DBNet::infer_bound: bad_alloc"));

@@ -4,6 +4,8 @@ unit_tests_sources = files(
     'test_geometry.cpp',
     'test_tiling.cpp',
     'test_nms.cpp',
+    'test_letterbox.cpp',
+    'test_yolo_decode.cpp',
 )
 
 idet_unit_tests_exe = executable(

@@ -3,4 +3,5 @@ idet_lib_engine_source = files(
     'engine.cpp',
     'dbnet.cpp',
     'scrfd.cpp',
+    'yolo.cpp',
 )

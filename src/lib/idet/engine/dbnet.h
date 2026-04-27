@@ -26,6 +26,7 @@
 #pragma once
 
 #include "engine/engine.h"
+#include "internal/letterbox.h"
 #include "internal/ort_tensor.h"
 
 #include <array>
@@ -116,14 +117,22 @@ class DBNet final : public IEngine {
      * @brief Geometry mapping between original image size and network input size.
      *
      * @details
-     * `sx` and `sy` represent the scale factors used to map coordinates from the original image
-     * space to the network input space (and vice versa).
+     * Pre-processing now uses an aspect-preserving letterbox transform: the source image is
+     * resized by a single uniform @c scale and padded with zeros at the bottom-right of the
+     * (in_w, in_h) input. The legacy non-uniform sx/sy scheme caused boxes to be slightly
+     * stretched/shifted on outputs whose aspect ratio differed from the source.
+     *
+     * To map a point @c (x_net, y_net) in network input space back to original image
+     * coordinates use:
+     *   @code
+     *   x_orig = (x_net - lb.pad_x) / lb.scale
+     *   y_orig = (y_net - lb.pad_y) / lb.scale
+     *   @endcode
      */
     struct NetGeom {
         int in_w = 0;
         int in_h = 0;
-        float sx = 1.0f; // in_w / orig_w
-        float sy = 1.0f; // in_h / orig_h
+        idet::internal::LetterboxInfo lb{};
     };
 
     /**
@@ -168,14 +177,16 @@ class DBNet final : public IEngine {
     NetGeom make_geom_(int orig_w, int orig_h, int force_w, int force_h) const;
 
     /**
-     * @brief Fill CHW float32 input buffer from BGR image, including resize/normalization as needed.
+     * @brief Letterbox + normalize a BGR image into a CHW float32 input buffer.
      *
      * @param dst_chw Destination buffer (size = 3 * in_h * in_w).
      * @param in_w Target input width.
      * @param in_h Target input height.
      * @param bgr Source image (CV_8UC3).
+     * @return Letterbox geometry (uniform scale + padding) used to map decoded coordinates
+     *         back to the original image space.
      */
-    void fill_input_chw_(float* dst_chw, int in_w, int in_h, const cv::Mat& bgr) const;
+    idet::internal::LetterboxInfo fill_input_chw_(float* dst_chw, int in_w, int in_h, const cv::Mat& bgr) const;
 
     /**
      * @brief Run ONNX Runtime inference in unbound mode and return the raw output tensor.
@@ -207,19 +218,34 @@ class DBNet final : public IEngine {
      * @param prob_hw Pointer to contiguous probability plane (size = out_h * out_w).
      * @param out_w Probability plane width.
      * @param out_h Probability plane height.
+     * @param geom  Network geometry used at preprocessing (letterbox scale/pad relative to
+     *              the network input size, not the probability map). The function maps
+     *              probability map coordinates first back into network input space (using
+     *              out_w/out_h vs in_w/in_h) and then to original image space using @c geom.lb.
      * @param orig_w Original image width.
      * @param orig_h Original image height.
      * @return Vector of detections in original image coordinates.
      */
-    std::vector<algo::Detection> postprocess_hw_(const float* prob_hw, int out_w, int out_h, int orig_w,
-                                                 int orig_h) const;
+    std::vector<algo::Detection> postprocess_hw_(const float* prob_hw, int out_w, int out_h, const NetGeom& geom,
+                                                 int orig_w, int orig_h) const;
 
     /**
-     * @brief Best-effort "rect-like" polygon expansion helper used by postprocessing.
+     * @brief Distance-offset polygon expansion (Vatti-style) for a rotated rectangle.
      *
-     * @param box Input quad points.
-     * @param unclip Expansion ratio.
-     * @return Expanded quad points.
+     * @details
+     * Approximates the @c pyclipper polygon offset used by reference DBNet implementations.
+     * For a rotated rectangle of size @c (w, h) the offset distance is
+     * @c D = (w * h * unclip) / (2 * (w + h)) so that each side moves outward by @c D, and
+     * the new size is @c (w + 2D, h + 2D) with the same center and angle. This matches the
+     * paper's intent: long thin text quads expand much more in the short dimension (height)
+     * than in the long one (width), which is what visually "makes the text fit".
+     *
+     * The legacy implementation scaled corners around the centroid by a uniform factor,
+     * which over-extended the long side and under-extended the short side.
+     *
+     * @param box Input quad points (any winding) sized in network-input pixel space.
+     * @param unclip Unclip ratio (typically 1.5..2.0). Values <= 1 disable expansion.
+     * @return Expanded quad points in the same coordinate system as the input.
      */
     static std::array<cv::Point2f, 4> unclip_rect_like_(const std::array<cv::Point2f, 4>& box, float unclip) noexcept;
 

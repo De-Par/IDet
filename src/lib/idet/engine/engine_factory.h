@@ -57,4 +57,27 @@ namespace idet::engine {
  */
 Result<std::unique_ptr<IEngine>> create_engine(const DetectorConfig& cfg) noexcept;
 
+/**
+ * @brief Run engine-specific configuration validation.
+ *
+ * @details
+ * Looks up the registered engine descriptor for @c cfg.engine and invokes its
+ * validator. Returns @ref idet::Status::Unsupported if the engine kind is not
+ * registered, or @ref idet::Status::Invalid if @c cfg.task does not match the
+ * engine's declared task.
+ *
+ * Generic validation (e.g. @c tiles_dim, @c tile_overlap, @c min_roi_size) is performed
+ * by @ref idet::DetectorConfig::validate and is not duplicated here.
+ */
+Status engine_validate_specific(const DetectorConfig& cfg) noexcept;
+
+/**
+ * @brief Pick a sensible default engine kind for the given task.
+ *
+ * @details
+ * Returns the first registered engine whose declared task matches @p task. Returns
+ * @ref idet::EngineKind::None if no engine is registered for that task.
+ */
+EngineKind engine_default_for_task(Task task) noexcept;
+
 } // namespace idet::engine

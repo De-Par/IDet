@@ -53,10 +53,12 @@ namespace idet {
 enum class Task : std::uint8_t {
     /** No task selected / invalid. */
     None = 0,
-    /** Text detection task (e.g., DBNet). */
+    /** Text detection task (e.g., DBNet/DBNet++). */
     Text = 1,
     /** Face detection task (e.g., SCRFD). */
     Face = 2,
+    /** Cloth/garment detection task (e.g., YOLO families). */
+    Cloth = 3,
 };
 
 /**
@@ -68,10 +70,24 @@ enum class Task : std::uint8_t {
 enum class EngineKind : std::uint8_t {
     /** No engine selected / invalid. */
     None = 0,
-    /** DBNet text detector engine. */
+    /** DBNet-family text detector engine (DBNet / DBNet++). */
     DBNet = 1,
     /** SCRFD face detector engine. */
     SCRFD = 2,
+    /**
+     * @brief Generic YOLO-family detector engine.
+     *
+     * @details
+     * One enum value covers all YOLO variants. The concrete engine probes the ONNX model's
+     * outputs at construction time and self-configures into one of two modes:
+     * - **In-graph NMS** (e.g. YOLO with NMS baked into the graph or end-to-end exports such
+     *   as YOLO26): a single output of shape @c [B, K, 6] (x1,y1,x2,y2,score,class) and an
+     *   optional companion @c num_dets/@c num_detections tensor. Decoded directly.
+     * - **Raw outputs** (vanilla YOLOv5/v8/v11/...): a single tensor of shape
+     *   @c [B, 4+nc, N] or @c [B, N, 4+nc]. Decoded by the engine and then filtered through
+     *   the library's own polygon NMS (@c idet::algo::nms_poly).
+     */
+    Yolo = 3,
 };
 
 /**
@@ -86,6 +102,8 @@ constexpr Task engine_task(EngineKind kind) noexcept {
         return Task::Text;
     case EngineKind::SCRFD:
         return Task::Face;
+    case EngineKind::Yolo:
+        return Task::Cloth;
     default:
         return Task::None;
     }

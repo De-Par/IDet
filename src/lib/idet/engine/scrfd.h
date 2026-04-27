@@ -35,6 +35,7 @@
 #pragma once
 
 #include "engine/engine.h"
+#include "internal/letterbox.h"
 #include "internal/ort_tensor.h"
 
 #include <cstddef>
@@ -240,14 +241,20 @@ class SCRFD final : public IEngine {
     Status probe_heads_layout_(int in_h, int in_w, std::vector<Head>* heads) noexcept;
 
     /**
-     * @brief Fill CHW float input tensor from a BGR image with SCRFD normalization.
+     * @brief Letterbox + SCRFD-normalize a BGR image into a CHW float input tensor.
+     *
+     * @details
+     * SCRFD models are trained on aspect-preserved inputs. This helper performs an
+     * aspect-preserving resize-and-pad (zero-pad) into the @c (in_w, in_h) buffer and then
+     * applies SCRFD normalization @c (x - 127.5) / 128.
      *
      * @param dst Destination CHW buffer (size = 3 * in_h * in_w).
      * @param in_w Effective input width.
      * @param in_h Effective input height.
      * @param bgr Source image (CV_8UC3).
+     * @return Letterbox geometry used to map decoded boxes back to original image space.
      */
-    void fill_input_chw_(float* dst, int in_w, int in_h, const cv::Mat& bgr) const;
+    idet::internal::LetterboxInfo fill_input_chw_(float* dst, int in_w, int in_h, const cv::Mat& bgr) const;
 
     /**
      * @brief Run ORT in unbound mode and return all model outputs.
@@ -259,13 +266,12 @@ class SCRFD final : public IEngine {
      * @param bgr Input BGR image.
      * @param force_w If > 0, forces preprocessing to this width (engine-defined alignment may apply).
      * @param force_h If > 0, forces preprocessing to this height.
-     * @param sx Output: scale X (in_w / orig_w).
-     * @param sy Output: scale Y (in_h / orig_h).
+     * @param lb Output: letterbox geometry used to map decoded boxes back to original space.
      * @param in_w Output: effective preprocessed width.
      * @param in_h Output: effective preprocessed height.
      */
-    Result<std::vector<Ort::Value>> run_unbound_(const cv::Mat& bgr, int force_w, int force_h, float& sx, float& sy,
-                                                 int& in_w, int& in_h) noexcept;
+    Result<std::vector<Ort::Value>> run_unbound_(const cv::Mat& bgr, int force_w, int force_h,
+                                                 idet::internal::LetterboxInfo& lb, int& in_w, int& in_h) noexcept;
 
     /** @brief Stable sigmoid helper for score decoding. */
     static inline float sigmoid_(float x) noexcept;
@@ -287,11 +293,12 @@ class SCRFD final : public IEngine {
      * @details
      * Consumes per-head pointers to score tensors and bbox tensors, interpreting each
      * according to the inferred @ref Head::score_layout and @ref Head::bbox_layout.
-     * Produces detections mapped to original image coordinates using scale factors.
+     * Produces detections mapped to original image coordinates using the inverse of the
+     * letterbox transform (uniform scale + top-left padding).
      */
     std::vector<algo::Detection> decode_(const std::vector<Head>& heads, const std::vector<const float*>& score_ptrs,
-                                         const std::vector<const float*>& bbox_ptrs, float sx, float sy, int orig_w,
-                                         int orig_h) const;
+                                         const std::vector<const float*>& bbox_ptrs,
+                                         const idet::internal::LetterboxInfo& lb, int orig_w, int orig_h) const;
 
   private:
     /** @brief ORT input node name (single input). */
