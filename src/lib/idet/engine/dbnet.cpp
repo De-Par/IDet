@@ -201,7 +201,7 @@ void DBNet::fill_input_chw_(float* dst, int in_w, int in_h, const cv::Mat& bgr) 
  */
 Result<Ort::Value> DBNet::run_ort_unbound_(const float* in, std::size_t in_count, int in_h, int in_w) noexcept {
     try {
-        static Ort::MemoryInfo cpu_mem = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
+        Ort::MemoryInfo cpu_mem = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
         const std::vector<int64_t> ishape = {1, 3, in_h, in_w};
 
         Ort::Value in_tensor =
@@ -299,24 +299,32 @@ std::vector<algo::Detection> DBNet::postprocess_hw_(const float* prob_hw, int ou
 
     cv::Mat prob(out_h, out_w, CV_32F, const_cast<float*>(prob_hw));
 
+    const float thr = clampf_(bin_thresh_, 0.0f, 1.0f);
+
+    // Fuse optional sigmoid + binarization in a single pass to avoid an extra clone + loop.
+    // prob2 holds the (possibly sigmoid-transformed) probability map for contour scoring.
     cv::Mat prob2;
+    cv::Mat bitmap(out_h, out_w, CV_8U);
     if (apply_sigmoid_) {
-        prob2 = prob.clone();
-        float* p = (float*)prob2.data;
-        const std::size_t n = (std::size_t)out_w * (std::size_t)out_h;
-        for (std::size_t i = 0; i < n; ++i)
-            p[i] = sigmoid_(p[i]);
+        prob2.create(out_h, out_w, CV_32F);
+        for (int y = 0; y < out_h; ++y) {
+            const float* src = prob.ptr<float>(y);
+            float* dst = prob2.ptr<float>(y);
+            std::uint8_t* br = bitmap.ptr<std::uint8_t>(y);
+            for (int x = 0; x < out_w; ++x) {
+                const float s = sigmoid_(src[x]);
+                dst[x] = s;
+                br[x] = (s > thr) ? 255 : 0;
+            }
+        }
     } else {
         prob2 = prob;
-    }
-
-    cv::Mat bitmap(out_h, out_w, CV_8U, cv::Scalar(0));
-    const float thr = clampf_(bin_thresh_, 0.0f, 1.0f);
-    for (int y = 0; y < out_h; ++y) {
-        const float* pr = prob2.ptr<float>(y);
-        std::uint8_t* br = bitmap.ptr<std::uint8_t>(y);
-        for (int x = 0; x < out_w; ++x)
-            br[x] = (pr[x] > thr) ? 255 : 0;
+        for (int y = 0; y < out_h; ++y) {
+            const float* pr = prob2.ptr<float>(y);
+            std::uint8_t* br = bitmap.ptr<std::uint8_t>(y);
+            for (int x = 0; x < out_w; ++x)
+                br[x] = (pr[x] > thr) ? 255 : 0;
+        }
     }
 
     std::vector<std::vector<cv::Point>> contours;
@@ -385,7 +393,7 @@ Status DBNet::setup_binding(int w, int h, int contexts) noexcept {
         bound_out_h_ = (int)bound_out_desc_.H;
         bound_out_w_ = (int)bound_out_desc_.W;
 
-        static Ort::MemoryInfo cpu_mem = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
+        Ort::MemoryInfo cpu_mem = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
 
         const std::vector<int64_t> ishape = {1, 3, g.in_h, g.in_w};
         const std::size_t out_numel = bound_out_desc_.numel;

@@ -200,12 +200,9 @@ float contour_score(const cv::Mat& prob, const std::vector<cv::Point>& contour) 
     cv::Rect bbox = cv::boundingRect(contour) & cv::Rect(0, 0, prob.cols, prob.rows);
     if (bbox.empty()) return 0.f;
 
-    thread_local cv::Mat mask;
-    mask.create(bbox.size(), CV_8U);
-    mask.setTo(0);
+    cv::Mat mask(bbox.size(), CV_8U, cv::Scalar(0));
 
-    thread_local std::vector<std::vector<cv::Point>> cnt(1);
-    cnt[0].clear();
+    std::vector<std::vector<cv::Point>> cnt(1);
     cnt[0].reserve(contour.size());
 
     for (const auto& p_orig : contour) {
@@ -281,9 +278,8 @@ float quad_iou(const std::array<cv::Point2f, 4>& A, const std::array<cv::Point2f
         if (!is_finite(A[i]) || !is_finite(B[i])) return 0.f;
     }
 
-    // Reuse buffers to avoid allocations in NMS loops
-    thread_local std::vector<cv::Point2f> pts;
-    thread_local std::vector<cv::Point2f> a, b, inter;
+    std::vector<cv::Point2f> pts;
+    std::vector<cv::Point2f> a, b, inter;
 
     auto make_hull = [&](const std::array<cv::Point2f, 4>& q, std::vector<cv::Point2f>& hull) -> bool {
         pts.assign(q.begin(), q.end());

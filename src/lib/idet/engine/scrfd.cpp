@@ -220,7 +220,7 @@ Result<std::vector<Ort::Value>> SCRFD::run_unbound_(const cv::Mat& bgr, int forc
         std::vector<float> chw((std::size_t)3 * (std::size_t)th * (std::size_t)tw);
         fill_input_chw_(chw.data(), tw, th, bgr);
 
-        static Ort::MemoryInfo cpu_mem = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
+        Ort::MemoryInfo cpu_mem = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
         const std::vector<int64_t> ishape = {1, 3, in_h, in_w};
 
         Ort::Value in_tensor =
@@ -559,7 +559,7 @@ Status SCRFD::setup_binding(int w, int h, int contexts) noexcept {
             bound_out_indices_.push_back(hd.bbox_idx);
         }
 
-        static Ort::MemoryInfo cpu_mem = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
+        Ort::MemoryInfo cpu_mem = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
 
         ctxs_.resize((std::size_t)contexts_);
         for (int ci = 0; ci < contexts_; ++ci) {

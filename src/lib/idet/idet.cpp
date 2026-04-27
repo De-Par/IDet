@@ -32,6 +32,7 @@
 #include <algorithm>
 #include <cmath>
 #include <exception>
+#include <memory>
 #include <new>
 #include <string>
 #include <utility>
@@ -509,26 +510,21 @@ Result<Detector> Detector::create(const DetectorConfig& cfg) noexcept {
     if (!vs.ok()) return Result<Detector>::Err(vs);
 
     Detector d;
-    detail::DetectorImpl* p = nullptr;
+    std::unique_ptr<detail::DetectorImpl> p;
 
     try {
-        p = new (std::nothrow) detail::DetectorImpl(cfg);
+        p.reset(new (std::nothrow) detail::DetectorImpl(cfg));
         if (!p) return Result<Detector>::Err(Status::OutOfMemory("Detector::create: alloc failed"));
 
         const Status is = p->init_engine();
-        if (!is.ok()) {
-            delete p;
-            return Result<Detector>::Err(is);
-        }
+        if (!is.ok()) return Result<Detector>::Err(is);
     } catch (const std::exception& e) {
-        delete p;
         return Result<Detector>::Err(Status::Invalid(std::string("Detector::create: ctor failed: ") + e.what()));
     } catch (...) {
-        delete p;
         return Result<Detector>::Err(Status::Internal("Detector::create: ctor failed (unknown)"));
     }
 
-    d.impl_ = p;
+    d.impl_ = p.release();
     d.vtbl_ = &detail::kVt;
     return Result<Detector>::Ok(std::move(d));
 }
