@@ -289,9 +289,13 @@ class IEngine {
      *
      * @details
      * ONNX Runtime uses an environment object to manage logging and global state. This helper provides
-     * a single process-wide instance:
+     * a single process-wide instance, returned as a `std::shared_ptr<Ort::Env>`:
      * - Logging level is fixed to `ORT_LOGGING_LEVEL_ERROR`.
      * - Logging identifier is taken from @p log_id if non-empty, otherwise `"idet"`.
+     *
+     * The shared_ptr is intentionally returned by value so each engine can keep its own copy alive
+     * across its lifetime. This avoids static-destruction-order issues where the global Ort::Env
+     * would otherwise be destroyed before sessions held by engines that have static storage duration.
      *
      * @warning
      * The first call constructs the static environment. Subsequent calls ignore different @p log_id
@@ -299,10 +303,14 @@ class IEngine {
      * the design would need to change.
      *
      * @param log_id Optional logging identifier string (may be null/empty).
-     * @return Reference to the global ORT environment.
+     * @return Shared pointer to the global ORT environment (never null).
      */
-    static Ort::Env& global_env_(const char* log_id) {
-        static Ort::Env env(ORT_LOGGING_LEVEL_ERROR, (log_id && log_id[0]) ? log_id : "idet");
+    static std::shared_ptr<Ort::Env> global_env_(const char* log_id) {
+        // The static shared_ptr keeps the Env alive for the whole process; engines hold copies
+        // so that any engine outliving the static (during shutdown) keeps the Env alive until
+        // its own session is destroyed.
+        static std::shared_ptr<Ort::Env> env =
+            std::make_shared<Ort::Env>(ORT_LOGGING_LEVEL_ERROR, (log_id && log_id[0]) ? log_id : "idet");
         return env;
     }
 
@@ -365,13 +373,19 @@ class IEngine {
     int contexts_ = 0;
 
     /**
-     * @brief Reference to the process-wide ONNX Runtime environment.
+     * @brief Shared owner of the process-wide ONNX Runtime environment.
      *
      * @details
-     * Initialized in the constructor using @ref global_env_. The referenced environment has
-     * static storage duration and outlives all engine instances.
+     * Initialized in the constructor using @ref global_env_. Holding a shared_ptr (rather than a
+     * raw reference to a static local) ensures the Ort::Env outlives @ref session_ even during
+     * static destruction at process exit, preventing use-after-free when engines themselves have
+     * static storage duration.
+     *
+     * @note Declared before @ref so_ and @ref session_ so that, at destruction, members are torn
+     * down in reverse order: session_ first, then env_. This guarantees the Env outlives the
+     * Session it was used to create.
      */
-    Ort::Env& env_;
+    std::shared_ptr<Ort::Env> env_;
 
     /**
      * @brief ONNX Runtime session options for this engine.

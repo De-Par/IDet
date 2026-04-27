@@ -43,6 +43,8 @@ namespace idet::engine {
  * Subsequent engine instances will reuse the same environment.
  */
 IEngine::IEngine(const DetectorConfig& cfg, const char* log_id) : cfg_(cfg), env_(global_env_(log_id)) {}
+// NOTE: env_ is a std::shared_ptr<Ort::Env>; each engine keeps its own copy of the singleton so
+// the Env outlives the engine's session even at process shutdown.
 
 /**
  * @brief Validate whether the proposed configuration can be applied as a hot update.
@@ -153,14 +155,16 @@ Status IEngine::create_session_(const std::string& model_path, EngineKind engine
         if (cfg_.runtime.ort_intra_threads > 0) so_.SetIntraOpNumThreads(cfg_.runtime.ort_intra_threads);
         if (cfg_.runtime.ort_inter_threads > 0) so_.SetInterOpNumThreads(cfg_.runtime.ort_inter_threads);
 
+        if (!env_) return Status::Internal("create_session: ORT environment is null");
+
         if (!model_path.empty()) {
-            session_ = Ort::Session(env_, model_path.c_str(), so_);
+            session_ = Ort::Session(*env_, model_path.c_str(), so_);
         } else {
             const auto blob = idet::internal::get_model_blob(engine_kind);
             if (blob.empty()) {
                 return Status::Invalid("create_session: empty model path and no embedded model provided");
             }
-            session_ = Ort::Session(env_, blob.data, blob.size, so_);
+            session_ = Ort::Session(*env_, blob.data, blob.size, so_);
         }
 
         // Best-effort diagnostic: confirm current threads are within the expected affinity mask.

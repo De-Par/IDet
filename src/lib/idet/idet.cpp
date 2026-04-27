@@ -297,7 +297,9 @@ class DetectorImpl final {
         // Convert public Image into a BGR cv::Mat view (implementation defined).
         auto bm_res = internal::BgrMat::from(Image(img));
         if (!bm_res.ok()) return Result<VecQuad>::Err(bm_res.status());
-        const cv::Mat& bgr = std::move(bm_res.value().mat());
+        // bm_res.value().mat() returns an lvalue reference into the BgrMat owned by bm_res.
+        // bm_res lives until the end of this function, so the reference stays valid.
+        const cv::Mat& bgr = bm_res.value().mat();
 
         const bool want_bound = force_bound || (cfg_.infer.bind_io && binding_ready_);
 

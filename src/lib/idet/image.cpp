@@ -278,9 +278,12 @@ IDET_API Result<Image> load_image(const std::string& path, PixelFormat output_fo
     Image img = Image::adopt(output_format, w, h, reinterpret_cast<std::uint8_t*>(px), stride,
                              [](void* p) { stbi_image_free(p); });
 
+    // NOTE: After Image::adopt(), ownership of 'px' is transferred to 'img' via a shared_ptr
+    // with a custom deleter. We must NOT call stbi_image_free(px) on any code path below,
+    // even if 'img' fails the validity check — doing so would cause a double free when 'img'
+    // is destroyed. If validity fails here, returning the error is sufficient: 'img' goes out
+    // of scope and its deleter runs exactly once.
     if (!img) {
-        // If this happens, treat it as a logic/internal error; also avoid leaking 'px'.
-        stbi_image_free(px);
         return Result<Image>::Err(Status::Internal("load_image: invalid Image after adopt"));
     }
 
