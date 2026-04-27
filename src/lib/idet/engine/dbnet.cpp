@@ -303,10 +303,20 @@ std::vector<algo::Detection> DBNet::postprocess_hw_(const float* prob_hw, int ou
 
     // Fuse optional sigmoid + binarization in a single pass to avoid an extra clone + loop.
     // prob2 holds the (possibly sigmoid-transformed) probability map for contour scoring.
+    //
+    // The per-row work is independent and bit-identical to the previous scalar implementation,
+    // so we parallelize across rows when the map is large enough to amortize fork/join.
     cv::Mat prob2;
     cv::Mat bitmap(out_h, out_w, CV_8U);
+    constexpr int kParallelMinPixels = 64 * 64;
+    const bool parallel = (out_h * out_w) >= kParallelMinPixels;
+    (void)parallel;
+
     if (apply_sigmoid_) {
         prob2.create(out_h, out_w, CV_32F);
+#if defined(_OPENMP)
+#pragma omp parallel for schedule(static) if (parallel)
+#endif
         for (int y = 0; y < out_h; ++y) {
             const float* src = prob.ptr<float>(y);
             float* dst = prob2.ptr<float>(y);
@@ -319,6 +329,9 @@ std::vector<algo::Detection> DBNet::postprocess_hw_(const float* prob_hw, int ou
         }
     } else {
         prob2 = prob;
+#if defined(_OPENMP)
+#pragma omp parallel for schedule(static) if (parallel)
+#endif
         for (int y = 0; y < out_h; ++y) {
             const float* pr = prob2.ptr<float>(y);
             std::uint8_t* br = bitmap.ptr<std::uint8_t>(y);
@@ -333,10 +346,15 @@ std::vector<algo::Detection> DBNet::postprocess_hw_(const float* prob_hw, int ou
     const float sx = (float)orig_w / (float)out_w;
     const float sy = (float)orig_h / (float)out_h;
 
+    // Reuse a single scratch instance across all contours in this postprocess call. The internal
+    // mask buffer is allocated lazily on the first contour and then reused; the per-contour
+    // vector inside scratch is also reused.
+    algo::ContourScoreScratch contour_scratch;
+
     for (auto& c : contours) {
         if (c.size() < 4) continue;
 
-        const float score = algo::contour_score(prob2, c);
+        const float score = algo::contour_score(prob2, c, contour_scratch);
         if (score < box_thresh_) continue;
 
         cv::RotatedRect rr = cv::minAreaRect(c);

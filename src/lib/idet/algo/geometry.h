@@ -65,6 +65,37 @@ struct Detection {
 void order_quad(cv::Point2f quad[4]) noexcept;
 
 /**
+ * @brief Reusable scratch buffers for @ref contour_score.
+ *
+ * @details
+ * Holds heap-allocated buffers used inside @ref contour_score so that callers processing many
+ * contours (e.g., DBNet postprocessing) do not pay an allocation per call. Pass the same
+ * @ref ContourScoreScratch to all calls within a single thread to amortize allocations.
+ *
+ * Thread-safety:
+ * - Not thread-safe. Use one instance per thread, or guard externally.
+ */
+struct ContourScoreScratch {
+    /**
+     * @brief Full-size mask buffer (sized to match the probability map).
+     *
+     * @details
+     * Sized lazily on first call to match the full @p prob size; subsequent calls reuse the
+     * buffer and reset only the bounding box ROI. This avoids per-contour heap allocations.
+     */
+    cv::Mat mask_full;
+
+    /**
+     * @brief Reusable single-contour vector for @c cv::drawContours.
+     *
+     * @details
+     * Pre-sized to one element so that @c contour_score can fill @c cnt[0] in place without
+     * vector reallocation.
+     */
+    std::vector<std::vector<cv::Point>> cnt{1};
+};
+
+/**
  * @brief Compute mean probability inside a contour.
  *
  * @details
@@ -75,9 +106,46 @@ void order_quad(cv::Point2f quad[4]) noexcept;
  * @param contour Contour points in prob coordinates.
  * @return Mean value of prob inside contour; returns 0 if contour/bbox invalid.
  *
- * @note Uses thread_local buffers for mask/temporary contour storage for performance.
+ * @note This overload allocates fresh buffers on each call. Prefer the
+ * @ref contour_score(const cv::Mat&, const std::vector<cv::Point>&, ContourScoreScratch&)
+ * overload when calling repeatedly.
  */
 float contour_score(const cv::Mat& prob, const std::vector<cv::Point>& contour);
+
+/**
+ * @brief Compute mean probability inside a contour using caller-provided scratch buffers.
+ *
+ * @details
+ * Equivalent in behavior to the buffer-less overload, but reuses heap allocations from
+ * @p scratch across calls. Result is bit-identical.
+ *
+ * @param prob Single-channel probability map (CV_32F).
+ * @param contour Contour points in prob coordinates.
+ * @param scratch Reusable scratch buffers; must remain valid for the duration of the call.
+ * @return Mean value of prob inside contour; returns 0 if contour/bbox invalid.
+ */
+float contour_score(const cv::Mat& prob, const std::vector<cv::Point>& contour, ContourScoreScratch& scratch);
+
+/**
+ * @brief Reusable scratch buffers for @ref quad_iou (exact polygon path).
+ *
+ * @details
+ * Holds the per-call vectors used by the exact convex-IoU path so that NMS can call
+ * @ref quad_iou thousands of times without paying for fresh heap allocations each time.
+ *
+ * Thread-safety:
+ * - Not thread-safe. Use one instance per thread, or guard externally.
+ */
+struct QuadIouScratch {
+    /** @brief Reusable input buffer for @c cv::convexHull. */
+    std::vector<cv::Point2f> pts;
+    /** @brief Reusable convex hull buffer for quad A. */
+    std::vector<cv::Point2f> a;
+    /** @brief Reusable convex hull buffer for quad B. */
+    std::vector<cv::Point2f> b;
+    /** @brief Reusable buffer for @c cv::intersectConvexConvex output. */
+    std::vector<cv::Point2f> inter;
+};
 
 /**
  * @brief IoU of two quadrilaterals.
@@ -93,8 +161,28 @@ float contour_score(const cv::Mat& prob, const std::vector<cv::Point>& contour);
  * @param B Second quad (ideally ordered and convex).
  * @param use_fast_iou If true, compute AABB IoU instead of polygon IoU.
  * @return IoU value in range [0, 1] (returns 0 if union is 0).
+ *
+ * @note This overload allocates fresh buffers on each call. Prefer the
+ * @ref quad_iou(const std::array<cv::Point2f, 4>&, const std::array<cv::Point2f, 4>&, bool, QuadIouScratch&)
+ * overload from inner loops (e.g. NMS).
  */
 float quad_iou(const std::array<cv::Point2f, 4>& A, const std::array<cv::Point2f, 4>& B, bool use_fast_iou = false);
+
+/**
+ * @brief IoU of two quadrilaterals using caller-provided scratch buffers.
+ *
+ * @details
+ * Equivalent in behavior to the buffer-less overload, but reuses heap allocations from
+ * @p scratch across calls. Result is bit-identical.
+ *
+ * @param A First quad (ideally ordered and convex).
+ * @param B Second quad (ideally ordered and convex).
+ * @param use_fast_iou If true, compute AABB IoU (scratch buffers are unused in this mode).
+ * @param scratch Reusable scratch buffers.
+ * @return IoU value in range [0, 1] (returns 0 if union is 0).
+ */
+float quad_iou(const std::array<cv::Point2f, 4>& A, const std::array<cv::Point2f, 4>& B, bool use_fast_iou,
+               QuadIouScratch& scratch);
 
 /**
  * @brief Computes IoU using axis-aligned bounding boxes (AABB) derived from quads.

@@ -250,6 +250,11 @@ std::vector<algo::Detection> nms_poly(const std::vector<algo::Detection>& dets, 
     std::vector<int> seen(N, -1);
     int stamp = 0;
 
+    // Reusable scratch for the exact polygon IoU path. Shared across all O(N^2) IoU calls in
+    // this NMS run so that we only allocate the underlying convex-hull / intersection buffers
+    // once. Result of quad_iou is bit-identical to the buffer-less overload.
+    QuadIouScratch iou_scratch;
+
     for (int p = 0; p < N; ++p) {
         const int i = order[p];
         if (suppressed[(std::size_t)i]) continue;
@@ -270,7 +275,8 @@ std::vector<algo::Detection> nms_poly(const std::vector<algo::Detection>& dets, 
             if (!aabb_overlap(ai, boxes[(std::size_t)j])) return;
 
             // Accurate overlap test via quad IoU (or fast AABB IoU).
-            const float iou = quad_iou(dets[(std::size_t)i].pts, dets[(std::size_t)j].pts, use_fast_iou);
+            const float iou =
+                quad_iou(dets[(std::size_t)i].pts, dets[(std::size_t)j].pts, use_fast_iou, iou_scratch);
             if (iou >= iou_thr) suppressed[(std::size_t)j] = 1;
         };
 

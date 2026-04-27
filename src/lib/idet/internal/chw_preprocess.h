@@ -64,20 +64,42 @@ inline void bgr_u8_to_chw_f32_same_size(const cv::Mat& bgr, float* dst_chw, cons
     const int W = bgr.cols;
 
     const std::size_t plane = (std::size_t)H * (std::size_t)W;
-    float* B = dst_chw + 0 * plane;
-    float* G = dst_chw + 1 * plane;
-    float* R = dst_chw + 2 * plane;
+    float* const B = dst_chw + 0 * plane;
+    float* const G = dst_chw + 1 * plane;
+    float* const R = dst_chw + 2 * plane;
 
+    const float mB = mean[0], mG = mean[1], mR = mean[2];
+    const float sB = inv_std[0], sG = inv_std[1], sR = inv_std[2];
+
+    // Hot path: this runs for every inference (and every tile in tiled mode), so it is worth
+    // parallelizing. The math is the same as the scalar version, so output is bit-identical.
+    //
+    // Notes:
+    // - We rely on OMP_MAX_ACTIVE_LEVELS=1 (set by platform/omp_config.cpp) to keep nested
+    //   parallelism from oversubscribing CPU resources when called from infer_tiled().
+    // - We only parallelize when the work is large enough to outweigh the fork/join cost.
+    // - Per-row pointers are precomputed to avoid per-pixel index multiplications and to give
+    //   the compiler an easier time auto-vectorizing the inner loop.
+    constexpr int kParallelMinPixels = 64 * 64;
+    const bool parallel = (H * W) >= kParallelMinPixels;
+
+#if defined(_OPENMP)
+#pragma omp parallel for schedule(static) if (parallel)
+#endif
     for (int y = 0; y < H; ++y) {
         const std::uint8_t* p = bgr.ptr<std::uint8_t>(y);
+        const std::size_t row = (std::size_t)y * (std::size_t)W;
+        float* br = B + row;
+        float* gr = G + row;
+        float* rr = R + row;
         for (int x = 0; x < W; ++x) {
-            const std::size_t idx = (std::size_t)y * (std::size_t)W + (std::size_t)x;
-            B[idx] = (float(p[0]) - mean[0]) * inv_std[0];
-            G[idx] = (float(p[1]) - mean[1]) * inv_std[1];
-            R[idx] = (float(p[2]) - mean[2]) * inv_std[2];
-            p += 3;
+            const int x3 = 3 * x;
+            br[x] = (float(p[x3 + 0]) - mB) * sB;
+            gr[x] = (float(p[x3 + 1]) - mG) * sG;
+            rr[x] = (float(p[x3 + 2]) - mR) * sR;
         }
     }
+    (void)parallel; // silence unused-var when _OPENMP is not defined
 }
 
 /**

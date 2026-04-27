@@ -168,9 +168,14 @@ Status IEngine::create_session_(const std::string& model_path, EngineKind engine
         }
 
         // Best-effort diagnostic: confirm current threads are within the expected affinity mask.
-        // This is not a functional requirement for ORT, but helps catch misordered policy setup.
-        const auto vr_aff = idet::platform::verify_all_threads_affinity_subset(cfg_.verbose);
-        if (!vr_aff.ok()) return vr_aff;
+        // This is NOT a functional requirement for ORT, only a debug aid that helps catch
+        // misordered policy setup. It scans /proc/self/task and calls sched_getaffinity per
+        // thread, which can take hundreds of milliseconds on processes with large thread counts
+        // (typical for ORT + tiling), so we only run it when verbose diagnostics are requested.
+        if (cfg_.verbose) {
+            const auto vr_aff = idet::platform::verify_all_threads_affinity_subset(cfg_.verbose);
+            if (!vr_aff.ok()) return vr_aff;
+        }
 
         return Status::Ok();
 

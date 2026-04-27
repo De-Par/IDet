@@ -29,6 +29,7 @@
 #include <algorithm>
 #include <cmath>
 #include <exception>
+#include <limits>
 #include <new>
 #include <stdexcept>
 #include <utility>
@@ -100,6 +101,15 @@ void SCRFD::cache_hot_() noexcept {
     max_img_ = cfg_.infer.max_img_size;
     min_w_ = cfg_.infer.min_roi_size_w;
     min_h_ = cfg_.infer.min_roi_size_h;
+
+    // Precompute the threshold in logit space so decode_ can early-reject anchors before
+    // computing sigmoid(z). Only valid for thresholds strictly inside (0, 1); otherwise we
+    // disable the early-reject by setting it to -infinity (no anchor is rejected).
+    if (apply_sigmoid_ && score_thr_ > 0.0f && score_thr_ < 1.0f) {
+        score_thr_logit_ = std::log(score_thr_ / (1.0f - score_thr_));
+    } else {
+        score_thr_logit_ = -std::numeric_limits<float>::infinity();
+    }
 }
 
 Status SCRFD::update_hot(const DetectorConfig& next) noexcept {
@@ -484,8 +494,17 @@ std::vector<algo::Detection> SCRFD::decode_(const std::vector<Head>& heads, cons
             for (int x = 0; x < Ws; ++x) {
                 for (int a = 0; a < A; ++a) {
                     float sc = score_at(y, x, a);
-                    if (apply_sigmoid_) sc = sigmoid_(sc);
-                    if (sc < score_thr_) continue;
+                    // Threshold in logit space when sigmoid is applied: sigmoid is monotonic, so
+                    // sigmoid(z) >= score_thr_  <=>  z >= score_thr_logit_. This avoids computing
+                    // an exp() for every below-threshold anchor (the vast majority of locations).
+                    // Detections that pass the threshold get the same sigmoid(z) as before — the
+                    // produced score is bit-identical to the previous implementation.
+                    if (apply_sigmoid_) {
+                        if (sc < score_thr_logit_) continue;
+                        sc = sigmoid_(sc);
+                    } else if (sc < score_thr_) {
+                        continue;
+                    }
 
                     float dl = 0, dt = 0, dr = 0, db = 0;
                     bbox_at(y, x, a, dl, dt, dr, db);

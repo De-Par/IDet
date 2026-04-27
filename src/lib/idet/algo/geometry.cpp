@@ -6,7 +6,7 @@
  * @details
  * Implements:
  *  - order_quad(): robust canonical ordering TL,TR,BR,BL with fallbacks for degenerate input,
- *  - contour_score(): mean probability inside a contour using a masked ROI (thread_local buffers),
+ *  - contour_score(): mean probability inside a contour using a masked ROI (optional caller-provided scratch buffers),
  *  - aabb_iou(): fast axis-aligned IoU approximation from quad extents,
  *  - quad_iou(): exact convex IoU via OpenCV (or AABB approximation when USE_FAST_IOU=1),
  *  - aspect_fit32(): aspect-ratio fit to a square side + 32-alignment.
@@ -194,16 +194,27 @@ void order_quad(cv::Point2f quad[4]) noexcept {
     quad[3] = t[3];
 }
 
-float contour_score(const cv::Mat& prob, const std::vector<cv::Point>& contour) {
+float contour_score(const cv::Mat& prob, const std::vector<cv::Point>& contour, ContourScoreScratch& scratch) {
     if (contour.empty()) return 0.f;
 
     cv::Rect bbox = cv::boundingRect(contour) & cv::Rect(0, 0, prob.cols, prob.rows);
     if (bbox.empty()) return 0.f;
 
-    cv::Mat mask(bbox.size(), CV_8U, cv::Scalar(0));
+    // Reuse a single full-size mask buffer across calls. We re-create only when the size or type
+    // doesn't match (typically only on the first call per detector run). The reused buffer is
+    // cleared lazily — only inside the bbox ROI for this contour — so previous draws outside the
+    // current bbox are irrelevant.
+    if (scratch.mask_full.rows != prob.rows || scratch.mask_full.cols != prob.cols ||
+        scratch.mask_full.type() != CV_8U) {
+        scratch.mask_full.create(prob.rows, prob.cols, CV_8U);
+    }
+    cv::Mat mask_roi = scratch.mask_full(bbox);
+    mask_roi.setTo(cv::Scalar(0));
 
-    std::vector<std::vector<cv::Point>> cnt(1);
-    cnt[0].reserve(contour.size());
+    if (scratch.cnt.empty()) scratch.cnt.resize(1);
+    auto& cnt0 = scratch.cnt[0];
+    cnt0.clear();
+    cnt0.reserve(contour.size());
 
     for (const auto& p_orig : contour) {
         cv::Point p = p_orig;
@@ -218,13 +229,19 @@ float contour_score(const cv::Mat& prob, const std::vector<cv::Point>& contour) 
         else if (p.y >= bbox.y + bbox.height)
             p.y = bbox.y + bbox.height - 1;
 
-        cnt[0].push_back(p - bbox.tl());
+        cnt0.push_back(p - bbox.tl());
     }
 
-    cv::drawContours(mask, cnt, 0, cv::Scalar(255), cv::FILLED);
+    cv::drawContours(mask_roi, scratch.cnt, 0, cv::Scalar(255), cv::FILLED);
     cv::Mat roi = prob(bbox);
-    cv::Scalar m = cv::mean(roi, mask);
+    cv::Scalar m = cv::mean(roi, mask_roi);
     return static_cast<float>(m[0]);
+}
+
+float contour_score(const cv::Mat& prob, const std::vector<cv::Point>& contour) {
+    // Backwards-compatible overload: allocate scratch on the stack/heap per call.
+    ContourScoreScratch scratch;
+    return contour_score(prob, contour, scratch);
 }
 
 float aabb_iou(const std::array<cv::Point2f, 4>& A, const std::array<cv::Point2f, 4>& B) {
@@ -269,7 +286,8 @@ float aabb_iou(const std::array<cv::Point2f, 4>& A, const std::array<cv::Point2f
     return iou;
 }
 
-float quad_iou(const std::array<cv::Point2f, 4>& A, const std::array<cv::Point2f, 4>& B, bool use_fast_iou) {
+float quad_iou(const std::array<cv::Point2f, 4>& A, const std::array<cv::Point2f, 4>& B, bool use_fast_iou,
+               QuadIouScratch& scratch) {
     if (use_fast_iou) return aabb_iou(A, B);
 
     auto is_finite = [](const cv::Point2f& p) noexcept { return std::isfinite(p.x) && std::isfinite(p.y); };
@@ -278,31 +296,29 @@ float quad_iou(const std::array<cv::Point2f, 4>& A, const std::array<cv::Point2f
         if (!is_finite(A[i]) || !is_finite(B[i])) return 0.f;
     }
 
-    std::vector<cv::Point2f> pts;
-    std::vector<cv::Point2f> a, b, inter;
-
+    // Reuse the scratch vectors. Capacity is preserved across calls; only size is reset.
     auto make_hull = [&](const std::array<cv::Point2f, 4>& q, std::vector<cv::Point2f>& hull) -> bool {
-        pts.assign(q.begin(), q.end());
+        scratch.pts.assign(q.begin(), q.end());
         hull.clear();
         hull.reserve(4);
 
-        cv::convexHull(pts, hull, /*clockwise=*/true, /*returnPoints=*/true);
+        cv::convexHull(scratch.pts, hull, /*clockwise=*/true, /*returnPoints=*/true);
 
         if (hull.size() < 3) return false;
         const double area = std::abs(cv::contourArea(hull));
         return area > 1e-9;
     };
 
-    if (!make_hull(A, a) || !make_hull(B, b)) return 0.f;
+    if (!make_hull(A, scratch.a) || !make_hull(B, scratch.b)) return 0.f;
 
-    inter.clear();
-    inter.reserve(8);
+    scratch.inter.clear();
+    scratch.inter.reserve(8);
 
-    float inter_area = (float)cv::intersectConvexConvex(a, b, inter, /*handleNested=*/true);
+    float inter_area = (float)cv::intersectConvexConvex(scratch.a, scratch.b, scratch.inter, /*handleNested=*/true);
     if (!(inter_area > 0.f) || !std::isfinite(inter_area)) return 0.f;
 
-    const float areaA = (float)std::abs(cv::contourArea(a));
-    const float areaB = (float)std::abs(cv::contourArea(b));
+    const float areaA = (float)std::abs(cv::contourArea(scratch.a));
+    const float areaB = (float)std::abs(cv::contourArea(scratch.b));
     if (!(areaA > 0.f) || !(areaB > 0.f)) return 0.f;
 
     const float cap = std::min(areaA, areaB);
@@ -318,6 +334,12 @@ float quad_iou(const std::array<cv::Point2f, 4>& A, const std::array<cv::Point2f
     if (iou > 1.f) iou = 1.f;
 
     return iou;
+}
+
+float quad_iou(const std::array<cv::Point2f, 4>& A, const std::array<cv::Point2f, 4>& B, bool use_fast_iou) {
+    // Backwards-compatible overload: allocate scratch on the stack per call.
+    QuadIouScratch scratch;
+    return quad_iou(A, B, use_fast_iou, scratch);
 }
 
 std::pair<int, int> aspect_fit32(const int iw, const int ih, const int side) {

@@ -39,6 +39,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <string>
 #include <utility>
@@ -305,6 +306,11 @@ class SCRFD final : public IEngine {
     // cached hot params
     bool apply_sigmoid_ = false;
     float score_thr_ = 0.6f;
+    // Equivalent to score_thr_ in logit space. Used to early-reject anchors before computing
+    // sigmoid(z) when apply_sigmoid_ is true. sigmoid is monotonic, so for any z and any threshold
+    // t in (0, 1), sigmoid(z) >= t  <=>  z >= logit(t) = log(t / (1 - t)).
+    // For thresholds outside (0, 1) we fall back to no early-reject (see scrfd.cpp::cache_hot_).
+    float score_thr_logit_ = -std::numeric_limits<float>::infinity();
     int max_img_ = 960;
     int min_w_ = 10;
     int min_h_ = 10;
