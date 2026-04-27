@@ -26,6 +26,7 @@
 #include <cctype>
 #include <cerrno>
 #include <cstddef>
+#include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <iostream>
@@ -135,6 +136,22 @@ static std::string trim_copy(std::string s) {
 }
 
 /**
+ * @brief Returns true if topology debug logging is enabled via IDET_DEBUG_TOPOLOGY env var.
+ *
+ * @details
+ * Cached on first call; subsequent calls do not re-read the environment. Set
+ * @c IDET_DEBUG_TOPOLOGY=1 in the environment to surface diagnostic warnings from CPU/NUMA
+ * topology parsing (e.g. malformed @c Cpus_allowed_list or unexpected sysfs contents).
+ */
+static bool topology_debug_enabled_() {
+    static const bool enabled = []() {
+        const char* env = std::getenv("IDET_DEBUG_TOPOLOGY");
+        return env != nullptr && env[0] != '\0' && env[0] != '0';
+    }();
+    return enabled;
+}
+
+/**
  * @brief Parses Linux-style CPU/node list strings like "0-3,8,10-11" into a sorted unique list.
  *
  * @details
@@ -142,11 +159,20 @@ static std::string trim_copy(std::string s) {
  * - comma-separated items,
  * - each item is either a single integer or a closed range "a-b".
  *
- * Invalid items are ignored (best-effort parsing).
+ * Invalid items are ignored (best-effort parsing). When @c IDET_DEBUG_TOPOLOGY is set in the
+ * environment, malformed items are reported on @c std::cerr to aid diagnosis of corrupted
+ * @c /proc/self/status or sysfs contents; in that mode the function still returns a valid list
+ * (containing only successfully parsed items) so the caller's policy decisions are unaffected.
  */
 static std::vector<int> parse_cpu_list_string(const std::string& raw) {
     std::string s = trim_copy(raw);
     std::vector<int> ids;
+
+    auto warn_bad_item = [&](const std::string& item, const char* reason) {
+        if (!topology_debug_enabled_()) return;
+        std::cerr << "[idet][platform] parse_cpu_list_string: dropping malformed item \"" << item << "\" (" << reason
+                  << ")\n";
+    };
 
     std::stringstream ss(s);
     std::string item;
@@ -159,6 +185,7 @@ static std::vector<int> parse_cpu_list_string(const std::string& raw) {
             try {
                 ids.push_back(std::stoi(item));
             } catch (...) {
+                warn_bad_item(item, "not an integer");
             }
         } else {
             try {
@@ -167,8 +194,11 @@ static std::vector<int> parse_cpu_list_string(const std::string& raw) {
                 if (a <= b) {
                     for (int x = a; x <= b; ++x)
                         ids.push_back(x);
+                } else {
+                    warn_bad_item(item, "inverted range");
                 }
             } catch (...) {
+                warn_bad_item(item, "non-integer range bound");
             }
         }
     }

@@ -26,9 +26,19 @@
 namespace idet::algo {
 
 void order_quad(cv::Point2f quad[4]) noexcept {
-    constexpr float kEpsAng = 1e-6f; // for angle/cross comparisons
-    constexpr float kEpsLex = 1e-4f; // for lex ordering in image coords
+    // kEpsLex is an absolute pixel-space tolerance for image coordinates and is intentionally
+    // not scaled: typical images keep coordinates in O(10^3) and lex tie-breaking only needs to
+    // resolve sub-pixel ambiguities.
+    constexpr float kEpsLex = 1e-4f;
     constexpr float kQuarter = 0.25f;
+
+    // Relative tolerance used to derive scale-aware epsilons further down. The previous
+    // implementation used a fixed kEpsAng = 1e-6f for both half-plane and cross-product
+    // comparisons, which is meaningless for quadrilaterals with pixel-scale coordinates: for a
+    // box at ~10^3 pixels the cross product magnitude is ~10^6, so 1e-6 was effectively zero,
+    // and for tiny boxes the same threshold became enormous relative to the underlying scale.
+    // We therefore derive eps_pos / eps_cross from the actual radius of the quad below.
+    constexpr float kEpsRel = 1e-6f;
 
     auto absf = [](float x) noexcept { return std::fabs(x); };
 
@@ -87,23 +97,39 @@ void order_quad(cv::Point2f quad[4]) noexcept {
     c.x = (quad[0].x + quad[1].x + quad[2].x + quad[3].x) * kQuarter;
     c.y = (quad[0].y + quad[1].y + quad[2].y + quad[3].y) * kQuarter;
 
-    // 3) angle ordering without atan2: half-plane + cross
+    // 3) compute the radius of the quad relative to its centroid so we can derive scale-aware
+    //    epsilons. max_r2 is the largest squared distance from any vertex to the centroid.
+    //    - eps_pos has the same dimension as a coordinate (units of pixels), so it scales with
+    //      sqrt(max_r2); the additive 1.0 prevents underflow on degenerate inputs.
+    //    - eps_cross has the dimension of an area (cross-product magnitude scales with r^2),
+    //      so it scales with max_r2 directly. The additive 1.0 keeps a sensible floor for
+    //      sub-pixel quads.
+    float max_r2 = 0.f;
+    for (int i = 0; i < 4; ++i) {
+        const cv::Point2f v = sub(quad[i], c);
+        max_r2 = std::max(max_r2, sqr_len(v));
+    }
+    const float eps_pos = kEpsRel * (std::sqrt(max_r2) + 1.f);
+    const float eps_cross = kEpsRel * (max_r2 + 1.f);
+
+    // 4) angle ordering without atan2: half-plane + cross. Uses scale-aware epsilons so the
+    //    behavior is consistent for both small (~1 px) and large (~10^4 px) quads.
     auto angle_less = [&](const cv::Point2f& p, const cv::Point2f& q) noexcept {
         const cv::Point2f vp = sub(p, c);
         const cv::Point2f vq = sub(q, c);
 
         // upper half-plane first: (y < 0) or (y ~= 0 and x >= 0)
-        const bool up_p = (vp.y < -kEpsAng) || (absf(vp.y) <= kEpsAng && vp.x >= 0.f);
-        const bool up_q = (vq.y < -kEpsAng) || (absf(vq.y) <= kEpsAng && vq.x >= 0.f);
+        const bool up_p = (vp.y < -eps_pos) || (absf(vp.y) <= eps_pos && vp.x >= 0.f);
+        const bool up_q = (vq.y < -eps_pos) || (absf(vq.y) <= eps_pos && vq.x >= 0.f);
         if (up_p != up_q) return up_p > up_q;
 
         const float cr = cross2(vp, vq);
-        if (absf(cr) > kEpsAng) return cr > 0.f;
+        if (absf(cr) > eps_cross) return cr > 0.f;
 
-        // collinear: farther first (stable)
+        // collinear: farther first (stable). |dp - dq| has the same dimension as cross product.
         const float dp = sqr_len(vp);
         const float dq = sqr_len(vq);
-        if (absf(dp - dq) > kEpsAng) return dp > dq;
+        if (absf(dp - dq) > eps_cross) return dp > dq;
 
         // full tie: deterministic (x then y)
         if (p.x < q.x - kEpsLex) return true;
@@ -123,7 +149,7 @@ void order_quad(cv::Point2f quad[4]) noexcept {
     swap_if(1, 3);
     swap_if(1, 2);
 
-    // 4) degeneracy check: area2 scaled by size
+    // 5) degeneracy check: area2 scaled by quad radius (same scale-aware epsilon as above).
     auto poly_area2 = [&](const std::array<cv::Point2f, 4>& p) noexcept -> float {
         float a = 0.f;
         for (int i = 0; i < 4; ++i) {
@@ -133,13 +159,8 @@ void order_quad(cv::Point2f quad[4]) noexcept {
         return a;
     };
 
-    float max_r2 = 0.f;
-    for (int i = 0; i < 4; ++i) {
-        const cv::Point2f v = sub(r[i], c);
-        max_r2 = std::max(max_r2, sqr_len(v));
-    }
     const float a2 = poly_area2(r);
-    const float deg_thr = 1e-6f * (max_r2 + 1.f); // scale-aware
+    const float deg_thr = eps_cross;
 
     if (absf(a2) <= deg_thr) {
         // fallback: lex sort + TL/BR + split remaining

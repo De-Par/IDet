@@ -4,6 +4,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <sstream>
 #include <stdexcept>
 #include <vector>
@@ -109,16 +110,35 @@ class YuvViewer::Impl {
     }
 
   private:
-    // Computes the expected raw frame byte size for a given format
+    // Computes the expected raw frame byte size for a given format. Returns 0 on invalid input
+    // (non-positive width or height, or sizes that would overflow size_t when multiplied),
+    // which is the same sentinel used downstream to reject the frame configuration.
     static size_t frame_size_bytes(int w, int h, YuvFormat fmt) {
+        // Reject non-positive dimensions early so the int -> size_t conversion below cannot
+        // turn a negative number into an enormous unsigned value (potential DoS / OOM if the
+        // caller forwarded untrusted CLI input).
+        if (w <= 0 || h <= 0) return 0;
+
+        const size_t uw = static_cast<size_t>(w);
+        const size_t uh = static_cast<size_t>(h);
+
+        // Plain area in pixels; checked against overflow before per-format scaling.
+        if (uw > std::numeric_limits<size_t>::max() / uh) return 0;
+        const size_t area = uw * uh;
+
         switch (fmt) {
         case YuvFormat::I420:
         case YuvFormat::NV12:
         case YuvFormat::NV21:
-            return (size_t)w * (size_t)h * 3 / 2; // 4:2:0
+            // 4:2:0 sampling: Y plane (area bytes) + UV plane (area / 2). Compute as area*3/2
+            // and also guard against overflow on the *3 multiplication.
+            if (area > std::numeric_limits<size_t>::max() / 3) return 0;
+            return area * 3 / 2;
         case YuvFormat::YUY2:
         case YuvFormat::UYVY:
-            return (size_t)w * (size_t)h * 2; // 4:2:2 packed
+            // 4:2:2 packed: 2 bytes per pixel.
+            if (area > std::numeric_limits<size_t>::max() / 2) return 0;
+            return area * 2;
         }
         return 0;
     }

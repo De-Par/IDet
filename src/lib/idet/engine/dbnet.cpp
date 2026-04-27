@@ -302,15 +302,15 @@ std::vector<algo::Detection> DBNet::postprocess_hw_(const float* prob_hw, int ou
     const float thr = clampf_(bin_thresh_, 0.0f, 1.0f);
 
     // Fuse optional sigmoid + binarization in a single pass to avoid an extra clone + loop.
-    // prob2 holds the (possibly sigmoid-transformed) probability map for contour scoring.
+    // prob2 holds the (possibly sigmoid-transformed) probability map used downstream for
+    // contour scoring; bitmap is the binary mask consumed by cv::findContours.
     //
-    // The per-row work is independent and bit-identical to the previous scalar implementation,
-    // so we parallelize across rows when the map is large enough to amortize fork/join.
+    // Rows are independent, so we parallelize across @c y for large enough maps.
     cv::Mat prob2;
     cv::Mat bitmap(out_h, out_w, CV_8U);
     constexpr int kParallelMinPixels = 64 * 64;
     const bool parallel = (out_h * out_w) >= kParallelMinPixels;
-    (void)parallel;
+    (void)parallel; // referenced inside the OpenMP `if (parallel)` clause
 
     if (apply_sigmoid_) {
         prob2.create(out_h, out_w, CV_32F);

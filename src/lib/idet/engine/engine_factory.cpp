@@ -19,6 +19,7 @@
 #include "engine/scrfd.h"
 
 #include <exception>
+#include <memory>
 #include <new>
 #include <string>
 #include <utility>
@@ -64,7 +65,7 @@ Result<std::unique_ptr<IEngine>> create_engine(const DetectorConfig& cfg) noexce
                 return Result<std::unique_ptr<IEngine>>::Err(
                     Status::Invalid("engine_factory: DBNet supports only Task::Text"));
             }
-            std::unique_ptr<IEngine> p(new DBNet(cfg));
+            std::unique_ptr<IEngine> p = std::make_unique<DBNet>(cfg);
             return Result<std::unique_ptr<IEngine>>::Ok(std::move(p));
         }
 
@@ -73,7 +74,7 @@ Result<std::unique_ptr<IEngine>> create_engine(const DetectorConfig& cfg) noexce
                 return Result<std::unique_ptr<IEngine>>::Err(
                     Status::Invalid("engine_factory: SCRFD supports only Task::Face"));
             }
-            std::unique_ptr<IEngine> p(new SCRFD(cfg));
+            std::unique_ptr<IEngine> p = std::make_unique<SCRFD>(cfg);
             return Result<std::unique_ptr<IEngine>>::Ok(std::move(p));
         }
 

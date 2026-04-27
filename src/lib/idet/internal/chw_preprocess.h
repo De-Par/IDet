@@ -71,13 +71,11 @@ inline void bgr_u8_to_chw_f32_same_size(const cv::Mat& bgr, float* dst_chw, cons
     const float mB = mean[0], mG = mean[1], mR = mean[2];
     const float sB = inv_std[0], sG = inv_std[1], sR = inv_std[2];
 
-    // Hot path: this runs for every inference (and every tile in tiled mode), so it is worth
-    // parallelizing. The math is the same as the scalar version, so output is bit-identical.
+    // Hot path: runs for every inference and every tile in tiled mode.
     //
-    // Notes:
-    // - We rely on OMP_MAX_ACTIVE_LEVELS=1 (set by platform/omp_config.cpp) to keep nested
-    //   parallelism from oversubscribing CPU resources when called from infer_tiled().
-    // - We only parallelize when the work is large enough to outweigh the fork/join cost.
+    // - Rows are independent, so we parallelize across @c y when the image is large enough to
+    //   amortize fork/join cost. @c OMP_MAX_ACTIVE_LEVELS=1 (set by platform/omp_config.cpp)
+    //   prevents oversubscription when called from inside infer_tiled()'s parallel region.
     // - Per-row pointers are precomputed to avoid per-pixel index multiplications and to give
     //   the compiler an easier time auto-vectorizing the inner loop.
     constexpr int kParallelMinPixels = 64 * 64;

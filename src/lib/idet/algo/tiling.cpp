@@ -218,14 +218,22 @@ Result<std::vector<algo::Detection>> infer_tiled(engine::IEngine& eng, const cv:
      * @details
      * Per-thread output buffers (TLS).
      *
-     * We accumulate detections per-thread to avoid contention in the hot loop.
-     * After the parallel region finishes, we merge all TLS vectors into one output.
+     * We accumulate detections per-thread to avoid contention in the hot loop. After the
+     * parallel region finishes, we merge all TLS vectors into one output.
      *
-     * Reserve heuristic: ~4 detections per tile on average (rough guess).
+     * Reserve heuristic: roughly 16 detections per tile, with a floor of 32 entries so
+     * single-tile or tiny-tile-count runs do not realloc on the first burst of detections.
+     * Dense-text / dense-face inputs frequently produce dozens of detections per tile, so a
+     * generous floor avoids 1-2 reallocations on every tiled inference.
      */
     std::vector<std::vector<algo::Detection>> tls((std::size_t)n_threads);
-    for (auto& v : tls)
-        v.reserve((std::size_t)(num_tiles * 4 / std::max(1, n_threads) + 8));
+    {
+        const int safe_threads = std::max(1, n_threads);
+        const std::size_t per_thread = (std::size_t)(num_tiles * 16 / safe_threads);
+        const std::size_t reserve_n = std::max<std::size_t>(per_thread, 32);
+        for (auto& v : tls)
+            v.reserve(reserve_n);
+    }
 
     /**
      * @details

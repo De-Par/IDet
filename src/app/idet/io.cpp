@@ -19,6 +19,13 @@ namespace io {
 
 namespace {
 
+// Wraps the idet::Image data in an owning cv::Mat in BGR(A) channel order.
+//
+// The returned Mat must own its data because callers (e.g. draw_detections) draw onto it
+// in-place and we must not corrupt the underlying Image buffer. For RGB(A) inputs,
+// cv::cvtColor(src, out, ...) into a freshly default-constructed dst already produces an owning
+// destination Mat, so the previous explicit src.clone() in that path was redundant. For BGR(A)
+// inputs we still need an explicit clone because the data otherwise points to the Image buffer.
 static cv::Mat to_cv_mat_bgr_copy(const idet::Image& image) {
     const auto& v = image.view();
     if (!v.is_valid()) {
@@ -31,17 +38,22 @@ static cv::Mat to_cv_mat_bgr_copy(const idet::Image& image) {
     }
 
     const int type = (ch == 3) ? CV_8UC3 : CV_8UC4;
-
     cv::Mat src(v.height, v.width, type, const_cast<std::uint8_t*>(v.data), static_cast<size_t>(v.stride_bytes));
 
-    cv::Mat out = src.clone();
-
-    if (v.format == idet::PixelFormat::RGB_U8) {
-        cv::cvtColor(out, out, cv::COLOR_RGB2BGR);
-    } else if (v.format == idet::PixelFormat::RGBA_U8) {
-        cv::cvtColor(out, out, cv::COLOR_RGBA2BGRA);
+    cv::Mat out;
+    switch (v.format) {
+    case idet::PixelFormat::RGB_U8:
+        cv::cvtColor(src, out, cv::COLOR_RGB2BGR);
+        break;
+    case idet::PixelFormat::RGBA_U8:
+        cv::cvtColor(src, out, cv::COLOR_RGBA2BGRA);
+        break;
+    default:
+        // Channel order already matches; clone so we own the buffer and the caller can draw
+        // on top of it without aliasing the Image.
+        out = src.clone();
+        break;
     }
-
     return out;
 }
 

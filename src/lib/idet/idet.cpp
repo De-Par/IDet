@@ -86,12 +86,12 @@ static inline VecQuad to_public_quads_(const std::vector<algo::Detection>& dets)
     VecQuad out;
     out.reserve(dets.size());
     for (const auto& d : dets) {
-        Quad q{};
+        out.emplace_back();
+        Quad& q = out.back();
         for (int i = 0; i < 4; ++i) {
             q[i].x = d.pts[i].x;
             q[i].y = d.pts[i].y;
         }
-        out.push_back(q);
     }
     return out;
 }

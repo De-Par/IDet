@@ -494,11 +494,11 @@ std::vector<algo::Detection> SCRFD::decode_(const std::vector<Head>& heads, cons
             for (int x = 0; x < Ws; ++x) {
                 for (int a = 0; a < A; ++a) {
                     float sc = score_at(y, x, a);
-                    // Threshold in logit space when sigmoid is applied: sigmoid is monotonic, so
-                    // sigmoid(z) >= score_thr_  <=>  z >= score_thr_logit_. This avoids computing
-                    // an exp() for every below-threshold anchor (the vast majority of locations).
-                    // Detections that pass the threshold get the same sigmoid(z) as before — the
-                    // produced score is bit-identical to the previous implementation.
+                    // Threshold in logit space when sigmoid is applied: sigmoid is monotonic
+                    // on (0, 1), so sigmoid(z) >= score_thr_  <=>  z >= score_thr_logit_.
+                    // This skips the exp() call for every below-threshold anchor (the vast
+                    // majority of locations) without affecting accepted detections, which
+                    // still receive the full sigmoid(z) score.
                     if (apply_sigmoid_) {
                         if (sc < score_thr_logit_) continue;
                         sc = sigmoid_(sc);
