@@ -5,7 +5,7 @@
  *
  * @details
  * This header defines @ref idet::engine::IEngine, a polymorphic interface implemented by
- * concrete model backends (DBNet, SCRFD, ...). It also provides small shared utilities
+ * concrete model backends (DBNet, SCRFD, YOLO, ...). It also provides small shared utilities
  * used by those engines (e.g., ORT environment/session helpers).
  *
  * Key concepts:
@@ -86,12 +86,12 @@ class IEngine {
     virtual ~IEngine() noexcept = default;
 
     /**
-     * @brief Engine kind identifier (e.g., DBNet or SCRFD).
+     * @brief Engine kind identifier (e.g., DBNet, SCRFD, or YOLO).
      */
     virtual EngineKind kind() const noexcept = 0;
 
     /**
-     * @brief Task domain handled by this engine (text or face).
+     * @brief Task domain handled by this engine (text, face, or cloth).
      *
      * @note
      * Typically derived from @ref kind(), but exposed explicitly for clarity.

@@ -115,7 +115,7 @@ This makes **IDet** suitable for:
 ## Highlights
 
 - ⚡ **High-performance CPU inference** (x86 / ARM, Linux & MacOS)
-- 🧠 **Multiple detection pipelines**: text and face detection
+- 🧠 **Multiple detection pipelines**: text, face, and cloth detection
 - 🧩 **Tiled inference** (`RxC`) with overlap for small-object recall
 - 📐 **Polygon-based post-processing** with NMS
 - 💾 **ONNX Runtime IOBinding** for reusable input/output buffers
@@ -405,6 +405,27 @@ Then run the test suite:
 scripts/run_tests.sh
 ```
 
+#### 4) Optional: embed ONNX models into the binary
+
+IDet can bake one model per supported engine directly into the library, producing a single self-contained artifact that needs no `assets/models/*.onnx` alongside it at runtime. This is useful for sealed deployments (single-binary services, containers without a mounted assets volume, etc.).
+
+Enable via the `embed_onnx_models` Meson option (default `false`):
+```bash
+scripts/build.sh force -- -Dembed_onnx_models=true
+```
+
+When enabled, the build scans `assets/models/` and, for each model it finds, generates a C++ translation unit containing the raw bytes and defines the matching `IDET_HAVE_<ENGINE>_EMBED` macro. The helper `idet::internal::get_model_blob(EngineKind)` then returns a non-empty blob for that engine, and `create_session_` picks it up automatically whenever `DetectorConfig::model_path` is empty.
+
+| Engine | Source file (must exist) | Define set when embedded |
+|:---|:---|:---:|
+| DBNet (text) | `assets/models/paddleocr/ch_ppocr_v2_det.onnx` | `IDET_HAVE_DBNET_EMBED` |
+| SCRFD (face) | `assets/models/scrfd/scrfd_500m_bnkps.onnx` | `IDET_HAVE_SCRFD_EMBED` |
+| YOLO (cloth) | `assets/models/yolo/yolov8n-fashionpedia-1.onnx` | `IDET_HAVE_YOLO_EMBED` |
+
+If a particular source file is missing the build emits a warning and continues without embedding that engine's model — the binary will still need an external `--model` path at runtime for that engine.
+
+> 💡 **Note:** Embedding increases the size of the IDet shared / static artifacts by roughly the combined on-disk size of the enabled ONNX files, and invalidates the `text` / `face` / `cloth` embedded blobs every time the source ONNX changes (Meson tracks this via `custom_target`).
+
 
 ## Model Zoo
 
@@ -452,9 +473,9 @@ MMOCR provides many detectors (R50, MobileNet, DCN variants, etc.). You can expo
 There are pre-converted **PaddleOCR** detectors on the Hugging Face Hub: **[deepghs/paddleocr](https://huggingface.co/deepghs/paddleocr/tree/main)**. The collection includes multiple **PP-OCR** detector generations (v2/v3/v4), including lightweight **mobile** variants and higher-accuracy **server** variants. Typical model names you can find in `assets/models/paddleocr` directory:
 
 - `ch_ppocr_v2_det.onnx`
-- `ch_ppocr_v2_mobile_det.onnx`
-- `ch_ppocr_v2_mobile_slim_det.onnx`
-- `ch_ppocr_v2_server_det.onnx`
+- `ch_ppocr_mobile_v2_det.onnx`
+- `ch_ppocr_mobile_slim_v2_det.onnx`
+- `ch_ppocr_server_v2_det.onnx`
 - `ch_ppocr_v3_det.onnx`
 - `en_ppocr_v3_det.onnx`
 - `ch_ppocr_v4_det.onnx`
@@ -464,8 +485,8 @@ There are pre-converted **PaddleOCR** detectors on the Hugging Face Hub: **[deep
 
 If you want to test “classic” **DBNet / DBNet++** models (e.g., **1200e** trained checkpoints on **ICDAR2015**), the Hugging Face Hub repo by **deepghs** provides ready-to-use ONNX exports: **[deepghs/text_detection](https://huggingface.co/deepghs/text_detection/tree/main)**. You can find multiple backbone variants, including **ResNet-18** and **ResNet-50** FPNC-style models, where some of these models may already be available in `assets/models/dbnet` directory:
 
-- `dbnet_resnet_18_fpnc.onnx`
-- `dbnet_resnet_50_dcnv2_fpnc.onnx`
+- `dbnet_resnet18_fpnc_1200e_icdar2015.onnx`
+- `dbnet_resnet18_fpnc_1200e_totaltext.onnx`
 
 ### SCRFD
 
@@ -566,7 +587,7 @@ x0,y0 x1,y1 x2,y2 x3,y3
 
 ## Quick Start
 
-**IDet** ships a **demo CLI app** (`idet_app`) that supports several detection modes: **Text**, **Face**. Each mode is launched by its own wrapper shell script, where you can override the default behavior by changing the parameters if desired. Let's look at each of them separately.
+**IDet** ships a **demo CLI app** (`idet_app`) that supports several detection modes: **Text**, **Face**, **Cloth**. Each mode is launched by its own wrapper shell script, where you can override the default behavior by changing the parameters if desired. Let's look at each of them separately.
 
 > ⚠️ **Warn:** The images below are for **illustration only** and do not reflect detection quality. Actual results depend on many factors, including the chosen model (architecture/size), input resolution, and pre-/post-processing settings (thresholds, unclip, NMS, etc.)!
 
@@ -727,6 +748,9 @@ Likely oversubscription. Lower `--threads_intra` (ORT) to 1–2; increase `--til
 
 - **Boxes are weak or too many false positives**
 Tune `--bin_thresh`, `--box_thresh`, `--unclip`. If model lacks final sigmoid, set `--sigmoid 1`.
+
+- **`The request api version [N] is not available, only api versions [1, M] are supported in this build. Current ORT version is X.Y.Z`**
+ABI mismatch between the ONNX Runtime headers IDet was compiled against and the `libonnxruntime` resolved at runtime. Starting with the current release IDet probes down from the headers' `ORT_API_VERSION` to a known-good minimum and binds the first supported version via `Ort::InitApi`, so a compatible runtime keeps working (with one informational note to stderr). If none of the probed versions is available, the engine factory returns a clean `Status::Internal` error instead of segfaulting. To fix the underlying mismatch: ensure exactly one ORT is visible to the loader (check `DYLD_LIBRARY_PATH` / `LD_LIBRARY_PATH` / RPATH), or rebuild with the bundled wrap pinned to a known-good ORT version via `scripts/build.sh force -- -Donnxruntime_system=false`, or upgrade the installed runtime so its API version is at least as new as the headers.
 
 
 ## FAQ

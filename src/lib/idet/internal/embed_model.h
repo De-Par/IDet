@@ -9,6 +9,7 @@
  * Embedded models are optional and controlled by compile-time macros:
  * - @c IDET_HAVE_DBNET_EMBED enables embedding for the DBNet text detection model
  * - @c IDET_HAVE_SCRFD_EMBED enables embedding for the SCRFD face detection model
+ * - @c IDET_HAVE_YOLO_EMBED  enables embedding for the YOLO cloth detection model
  *
  * When the corresponding macro is not defined, the accessor returns an empty blob
  * (@c {nullptr, 0}) and the caller is expected to use an external model path.
@@ -19,8 +20,9 @@
  * - If empty, fall back to loading from @ref idet::DetectorConfig::model_path
  *
  * @note
- * The actual embedded symbol definitions (e.g., @c dbnet_model, @c scrfd_model) are expected to be
- * provided by a generated/compiled translation unit (for example, produced from an ONNX file).
+ * The actual embedded symbol definitions (e.g., @c dbnet_model, @c scrfd_model, @c yolo_model)
+ * are expected to be provided by a generated/compiled translation unit (for example, produced
+ * from an ONNX file).
  *
  * @note
  * This is an internal header and is not part of the stable public API.
@@ -116,13 +118,42 @@ inline constexpr ModelBlob get_scrfd_model_blob() noexcept {
 }
 #endif
 
+// Cloth detection YOLO model
+#if defined(IDET_HAVE_YOLO_EMBED)
+/**
+ * @brief Embedded YOLO model bytes (generated symbol).
+ *
+ * The symbol must be defined in exactly one translation unit when embedding is enabled.
+ */
+extern const unsigned char yolo_model[];
+
+/** @brief Size of @ref yolo_model in bytes. */
+extern const std::size_t yolo_model_len;
+
+/**
+ * @brief Returns the embedded YOLO model blob.
+ * @return Non-empty blob when embedding is enabled, otherwise empty.
+ */
+inline constexpr ModelBlob get_yolo_model_blob() noexcept {
+    return {yolo_model, yolo_model_len};
+}
+#else
+/**
+ * @brief Returns an empty blob when YOLO embedding is disabled.
+ * @return Empty blob @c {nullptr, 0}.
+ */
+inline constexpr ModelBlob get_yolo_model_blob() noexcept {
+    return {nullptr, 0};
+}
+#endif
+
 /**
  * @brief Returns an embedded model blob for the specified engine kind.
  *
  * Dispatches to engine-specific embedded blob accessors. If embedding is disabled for the
  * requested engine, returns an empty blob.
  *
- * @param engine_kind Engine kind (DBNet, SCRFD, etc.).
+ * @param engine_kind Engine kind (DBNet, SCRFD, Yolo).
  * @return Embedded model blob or an empty blob when unavailable/unsupported.
  */
 inline ModelBlob get_model_blob(EngineKind engine_kind) noexcept {
@@ -131,6 +162,8 @@ inline ModelBlob get_model_blob(EngineKind engine_kind) noexcept {
         return get_dbnet_model_blob();
     case EngineKind::SCRFD:
         return get_scrfd_model_blob();
+    case EngineKind::Yolo:
+        return get_yolo_model_blob();
     default:
         return {nullptr, 0};
     }

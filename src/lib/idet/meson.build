@@ -69,6 +69,26 @@ if embed_models
         idet_lib_source += [face_blob]
         idet_build_defs += ['-DIDET_HAVE_SCRFD_EMBED']
     endif
+
+    # Cloth detection model (YOLO family, Fashionpedia checkpoint)
+    cloth_model_path = join_paths(models_root, 'yolo', 'yolov8n-fashionpedia-1.onnx')
+    if not fs.exists(cloth_model_path)
+        warning('YOLO model (cloth) not found at ' + cloth_model_path)
+    else
+        cloth_blob = custom_target(
+            'yolo_model_gen',
+            input  : cloth_model_path,
+            output : 'yolo_model_gen.cpp',
+            command: [
+                python, script_path,
+                '--name', 'yolo_model',
+                '--input', '@INPUT@',
+                '--output', '@OUTPUT@',
+            ],
+        )
+        idet_lib_source += [cloth_blob]
+        idet_build_defs += ['-DIDET_HAVE_YOLO_EMBED']
+    endif
 endif
 
 if idet_libtype in ['shared', 'both']
