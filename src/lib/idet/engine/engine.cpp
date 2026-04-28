@@ -22,11 +22,98 @@
 #include "internal/embed_model.h"
 #include "platform/cross_topology.h"
 
+#include <atomic>
+#include <cstdint>
 #include <exception>
+#include <iostream>
+#include <mutex>
 #include <new>
 #include <string>
 
 namespace idet::engine {
+
+namespace {
+
+/**
+ * @brief Minimum ORT C API version this library is willing to fall back to.
+ *
+ * @details
+ * The ORT C ABI is forward-compatible (newer libs accept older API requests). We anchor
+ * the minimum at v17, which corresponds to ONNX Runtime 1.17.x — the version we explicitly
+ * test against. Users with older runtimes will see a clean Status::Internal error instead
+ * of a process segfault when GetApi() returns nullptr.
+ */
+constexpr std::uint32_t kMinSupportedOrtApiVersion = 17;
+
+/**
+ * @brief Probe the loaded ORT library and bind @c Ort::Global to a compatible API.
+ *
+ * @details
+ * Defines a process-wide handshake: we ask @c OrtGetApiBase() for @c ORT_API_VERSION
+ * (the value baked into our headers), and if that fails we walk down towards
+ * @ref kMinSupportedOrtApiVersion. The first non-null pointer wins; we install it via
+ * @c Ort::InitApi(api) so that all subsequent @c Ort::* constructors see a valid table.
+ *
+ * Returns:
+ * - The chosen @c OrtApi* on success.
+ * - @c nullptr if the runtime supports no version in @c [kMinSupportedOrtApiVersion, ORT_API_VERSION].
+ *
+ * Thread-safety: protected by an internal once-flag so we probe exactly once per process.
+ */
+const OrtApi* probe_and_init_ort_api_() noexcept {
+    static std::once_flag once;
+    static const OrtApi* api = nullptr;
+    static std::uint32_t chosen_version = 0;
+
+    std::call_once(once, []() {
+        const OrtApiBase* base = OrtGetApiBase();
+        if (base == nullptr) {
+            std::cerr << "[idet] OrtGetApiBase() returned null; ONNX Runtime is not loadable\n";
+            return;
+        }
+
+        // Probe down from the headers' ORT_API_VERSION. The library prints a single
+        // "request api version [N] is not available" diagnostic for unsupported versions;
+        // we silence further probes by stopping at the first success.
+        for (std::uint32_t v = static_cast<std::uint32_t>(ORT_API_VERSION); v >= kMinSupportedOrtApiVersion; --v) {
+            const OrtApi* candidate = base->GetApi(v);
+            if (candidate != nullptr) {
+                api = candidate;
+                chosen_version = v;
+                Ort::InitApi(candidate);
+                if (v != static_cast<std::uint32_t>(ORT_API_VERSION)) {
+                    const char* libver = base->GetVersionString ? base->GetVersionString() : "unknown";
+                    std::cerr << "[idet] note: compiled against ORT API v" << ORT_API_VERSION
+                              << " but runtime (libonnxruntime " << libver
+                              << ") only supports up to v" << v
+                              << "; using v" << v << ". Rebuild against the matching headers"
+                              << " for full feature parity.\n";
+                }
+                break;
+            }
+            if (v == 0) break; // guard against underflow
+        }
+
+        if (api == nullptr) {
+            const char* libver = base->GetVersionString ? base->GetVersionString() : "unknown";
+            std::cerr << "[idet] FATAL: loaded libonnxruntime " << libver
+                      << " supports no ORT C API version in [" << kMinSupportedOrtApiVersion
+                      << ", " << ORT_API_VERSION << "]; cannot initialize ORT.\n";
+        }
+    });
+
+    (void)chosen_version; // currently informational only
+    return api;
+}
+
+} // namespace
+
+Status ensure_ort_api_initialized_() noexcept {
+    if (probe_and_init_ort_api_() == nullptr) {
+        return Status::Internal("ORT C API initialization failed: header/runtime version mismatch");
+    }
+    return Status::Ok();
+}
 
 /**
  * @brief Base engine constructor.
@@ -155,7 +242,12 @@ Status IEngine::create_session_(const std::string& model_path, EngineKind engine
         if (cfg_.runtime.ort_intra_threads > 0) so_.SetIntraOpNumThreads(cfg_.runtime.ort_intra_threads);
         if (cfg_.runtime.ort_inter_threads > 0) so_.SetInterOpNumThreads(cfg_.runtime.ort_inter_threads);
 
-        if (!env_) return Status::Internal("create_session: ORT environment is null");
+        if (!env_) {
+            return Status::Internal(
+                "create_session: ORT environment is null (likely ORT C API version mismatch — see "
+                "stderr for the probe diagnostic; rebuild against the headers matching your libonnxruntime "
+                "or upgrade libonnxruntime to a version that exposes the requested API).");
+        }
 
         if (!model_path.empty()) {
             session_ = Ort::Session(*env_, model_path.c_str(), so_);

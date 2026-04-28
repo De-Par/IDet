@@ -44,6 +44,28 @@
 #endif
 
 // -----------------------------------------------------------------------------
+// Manual ORT API init.
+//
+// By default the ORT C++ wrapper performs a static-init call equivalent to
+//     Ort::Global<void>::api_ = OrtGetApiBase()->GetApi(ORT_API_VERSION);
+// which is hostile to forward-compatibility: if the loaded libonnxruntime.so
+// supports a lower API version than the headers we compiled against, GetApi()
+// returns nullptr, the loader prints a "request api version [N] is not
+// available" message to stderr, and the very next Ort::* call dereferences a
+// null pointer and segfaults the process.
+//
+// We define ORT_API_MANUAL_INIT before including the wrapper so that
+// Ort::Global<void>::api_ stays nullptr until we call Ort::InitApi(api). The
+// call is performed by @ref idet::engine::ensure_ort_api_initialized_() which
+// probes from ORT_API_VERSION downwards and picks the highest API version the
+// runtime library actually supports. Anyone with a lib >= our minimum
+// supported API can run the binary without rebuilding.
+// -----------------------------------------------------------------------------
+#ifndef ORT_API_MANUAL_INIT
+    #define ORT_API_MANUAL_INIT
+#endif
+
+// -----------------------------------------------------------------------------
 // onnxruntime_cxx_api.h
 // -----------------------------------------------------------------------------
 #if defined(__has_include) && __has_include(<onnxruntime/core/session/onnxruntime_cxx_api.h>)

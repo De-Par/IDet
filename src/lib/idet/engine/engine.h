@@ -34,6 +34,20 @@
 namespace idet::engine {
 
 /**
+ * @brief Initialize the ORT C API table for the current process.
+ *
+ * @details
+ * With @c ORT_API_MANUAL_INIT defined (see @ref internal/ort_headers.h) the wrapper does
+ * not auto-bind @c Ort::Global::api_ at static-init. This helper performs a one-shot
+ * probe over the version range @c [kMinSupportedOrtApiVersion, ORT_API_VERSION] and
+ * installs the highest version the loaded @c libonnxruntime supports via @c Ort::InitApi.
+ *
+ * Returns @c Status::Ok() if a compatible version was found; otherwise an internal error
+ * with a diagnostic message. The probe is idempotent and thread-safe (single @c std::call_once).
+ */
+Status ensure_ort_api_initialized_() noexcept;
+
+/**
  * @brief Abstract engine interface for model inference.
  *
  * @details
@@ -303,12 +317,24 @@ class IEngine {
      * the design would need to change.
      *
      * @param log_id Optional logging identifier string (may be null/empty).
-     * @return Shared pointer to the global ORT environment (never null).
+     * @return Shared pointer to the global ORT environment, or an empty @c shared_ptr if
+     * the ORT C API could not be initialized (header/runtime version mismatch). Callers
+     * must surface a @ref Status error in that case (e.g. @ref create_session_ returns
+     * @c Status::Internal when @ref env_ is null).
      */
     static std::shared_ptr<Ort::Env> global_env_(const char* log_id) {
         // The static shared_ptr keeps the Env alive for the whole process; engines hold copies
         // so that any engine outliving the static (during shutdown) keeps the Env alive until
         // its own session is destroyed.
+        //
+        // We must initialize the ORT C API table BEFORE constructing Ort::Env: with
+        // ORT_API_MANUAL_INIT defined (see internal/ort_headers.h), Ort::Global::api_ is
+        // null until ensure_ort_api_initialized_() probes for a compatible version. If the
+        // probe fails (no supported version) we still need to return *some* shared_ptr,
+        // so we return an empty one and let create_session_ surface a Status error.
+        if (!ensure_ort_api_initialized_().ok()) {
+            return std::shared_ptr<Ort::Env>{};
+        }
         static std::shared_ptr<Ort::Env> env =
             std::make_shared<Ort::Env>(ORT_LOGGING_LEVEL_ERROR, (log_id && log_id[0]) ? log_id : "idet");
         return env;
