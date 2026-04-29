@@ -1,11 +1,21 @@
 #!/usr/bin/env bash
 
-# Must be sourced in bash. When sourced, $0 is the parent shell; BASH_SOURCE[0] is this file
-if [[ -z "${BASH_VERSION:-}" ]]; then
-    echo "[TC][ERROR] This toolchain must be sourced in bash (not zsh). Run: bash, then source this script." >&2
+# Implementation file for the IDet toolchain loader. The bash-only idioms
+# below (indirect parameter expansion, `printf -v`, `declare -F`, bash arrays)
+# make direct-sourcing from zsh impractical; zsh users enter through
+# `toolchain/activate.sh`, which re-invokes this file under a bash subshell
+# and imports the resulting exports / aliases / thin tc_* wrappers back into
+# their zsh session.
+if [ -z "${BASH_VERSION:-}" ]; then
+    if [ -n "${ZSH_VERSION:-}" ]; then
+        echo "[TC][ERROR] tc.sh cannot be sourced directly from zsh. Use: source toolchain/activate.sh [profile]" >&2
+    else
+        echo "[TC][ERROR] tc.sh must be sourced from bash (current shell is unsupported)" >&2
+    fi
     return 1 2>/dev/null || exit 1
 fi
 
+# When sourced, $0 is the parent shell; BASH_SOURCE[0] is this file.
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     echo "[TC][ERROR] tc.sh must be sourced: source toolchain/tc.sh" >&2
     exit 1

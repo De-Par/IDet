@@ -218,12 +218,14 @@ The toolchain loader reads environment variables from:
 
 The toolchain is designed to be **sourced once per terminal session**. It sets up a reproducible build environment: selected compiler, tool versions, Meson native file and default build directory.
 
-> ⚠️ **Warn:** **[toolchain/activate.sh](toolchain/activate.sh)** and **[toolchain/tc.sh](toolchain/tc.sh)** must be sourced from **bash** (not zsh), not executed. They export environment variables into your current shell. On macOS, run `bash` first, then `source toolchain/*.sh`.
+> 💡 **Note:** **[toolchain/activate.sh](toolchain/activate.sh)** must be **sourced** (not executed) — it exports environment variables into your current shell. Both `bash` and `zsh` are supported: under zsh the bash implementation is re-invoked in a subshell and its exports, `idet-*` aliases and thin wrappers for `tc_list` / `tc_print` / `tc_load` are imported back into the calling zsh. **[toolchain/tc.sh](toolchain/tc.sh)** is the bash-only implementation file — zsh users should always enter through `activate.sh`.
 
-1) List available (or selected) profiles:
+1) List available (or selected) profiles (bash users can source `tc.sh` directly; zsh users should activate first and then call `tc_list`):
     ```bash
-    source toolchain/tc.sh
-    tc_list
+    # bash
+    source toolchain/tc.sh && tc_list
+    # zsh (or bash)
+    source toolchain/activate.sh && tc_list
     ```
     <table align="center" width="70%">
       <tr>
