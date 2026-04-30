@@ -29,11 +29,16 @@
 #include "platform/runtime_policy_setup.h"
 
 #include <algorithm>
+#include <atomic>
+#include <condition_variable>
 #include <cmath>
 #include <exception>
 #include <memory>
+#include <mutex>
 #include <new>
+#include <optional>
 #include <string>
+#include <thread>
 #include <utility>
 
 namespace idet {
@@ -375,6 +380,136 @@ class DetectorImpl final {
     bool binding_ready_ = false;
 };
 
+/**
+ * @brief Background single-flight detector runner.
+ *
+ * @details
+ * The worker owns the detector and serializes all detection calls through one background
+ * thread. This gives pipeline users an explicit, bounded handoff point without sharing a
+ * detector instance between application threads.
+ */
+struct DetectorWorkerImpl final {
+    Detector detector;
+    DetectorWorkerOptions options;
+
+    mutable std::mutex mu;
+    std::condition_variable cv;
+    std::thread thread;
+
+    bool stop = false;
+    bool has_job = false;
+    Image job;
+    std::atomic<DetectorWorkerState> worker_state{DetectorWorkerState::Idle};
+    std::optional<Result<VecQuad>> completed;
+
+    DetectorWorkerImpl(Detector&& det, DetectorWorkerOptions opt) : detector(std::move(det)), options(opt) {}
+
+    ~DetectorWorkerImpl() noexcept {
+        shutdown();
+    }
+
+    DetectorWorkerImpl(const DetectorWorkerImpl&) = delete;
+    DetectorWorkerImpl& operator=(const DetectorWorkerImpl&) = delete;
+
+    Status start() noexcept {
+        try {
+            thread = std::thread([this]() { this->run_loop(); });
+            return Status::Ok();
+        } catch (const std::bad_alloc&) {
+            return Status::OutOfMemory("DetectorWorker: thread allocation failed");
+        } catch (const std::exception& e) {
+            return Status::Internal(std::string("DetectorWorker: start failed: ") + e.what());
+        } catch (...) {
+            return Status::Internal("DetectorWorker: start failed (unknown)");
+        }
+    }
+
+    void shutdown() noexcept {
+        {
+            std::lock_guard<std::mutex> lock(mu);
+            stop = true;
+            cv.notify_all();
+        }
+        if (thread.joinable()) thread.join();
+    }
+
+    Status submit(const Image& image) noexcept {
+        if (!image) return Status::Invalid("DetectorWorker::submit: invalid image");
+
+        Image owned_or_view;
+        if (options.copy_input) {
+            const ImageView& v = image.view();
+            auto cp = Image::copy_from(v.format, v.width, v.height, v.data, v.stride_bytes);
+            if (!cp.ok()) return cp.status();
+            owned_or_view = std::move(cp.value());
+        } else {
+            owned_or_view = image;
+        }
+
+        {
+            std::lock_guard<std::mutex> lock(mu);
+            if (stop) return Status::Invalid("DetectorWorker::submit: worker is stopping");
+            const DetectorWorkerState st = worker_state.load(std::memory_order_acquire);
+            if (st == DetectorWorkerState::Running) {
+                return Status::Invalid("DetectorWorker::submit: worker is already running");
+            }
+            if (st == DetectorWorkerState::Ready || completed.has_value()) {
+                return Status::Invalid("DetectorWorker::submit: previous result not consumed");
+            }
+
+            job = std::move(owned_or_view);
+            has_job = true;
+            worker_state.store(DetectorWorkerState::Running, std::memory_order_release);
+        }
+        cv.notify_one();
+        return Status::Ok();
+    }
+
+    DetectorWorkerState state() const noexcept {
+        return worker_state.load(std::memory_order_acquire);
+    }
+
+    Result<VecQuad> take_result() noexcept {
+        std::lock_guard<std::mutex> lock(mu);
+        if (worker_state.load(std::memory_order_acquire) == DetectorWorkerState::Running) {
+            return Result<VecQuad>::Err(Status::Invalid("DetectorWorker::take_result: task still running"));
+        }
+        if (!completed.has_value()) {
+            return Result<VecQuad>::Err(Status::NotFound("DetectorWorker::take_result: no completed result"));
+        }
+
+        Result<VecQuad> out = std::move(*completed);
+        completed.reset();
+        worker_state.store(DetectorWorkerState::Idle, std::memory_order_release);
+        return out;
+    }
+
+  private:
+    void run_loop() noexcept {
+        for (;;) {
+            Image current;
+            {
+                std::unique_lock<std::mutex> lock(mu);
+                cv.wait(lock, [&]() { return stop || has_job; });
+                if (stop && !has_job) return;
+
+                current = std::move(job);
+                job = Image{};
+                has_job = false;
+            }
+
+            Result<VecQuad> r =
+                options.use_bound ? detector.detect_bound(current, options.binding_context_index) : detector.detect(current);
+
+            {
+                std::lock_guard<std::mutex> lock(mu);
+                completed.emplace(std::move(r));
+            }
+            worker_state.store(DetectorWorkerState::Ready, std::memory_order_release);
+        }
+    }
+};
+
 } // namespace detail
 
 namespace detail {
@@ -562,6 +697,95 @@ Result<VecQuad> Detector::detect(const Image& image) noexcept {
 Result<VecQuad> Detector::detect_bound(const Image& image, int ctx_idx) noexcept {
     if (!impl_ || !vtbl_) return Result<VecQuad>::Err(Status::Invalid("Detector::detect_bound: invalid detector"));
     return vtbl_->detect_bound(impl_, image, ctx_idx);
+}
+
+/// @brief Stops the background worker and releases resources.
+DetectorWorker::~DetectorWorker() noexcept {
+    reset();
+}
+
+/// @brief Move constructor transfers the worker implementation pointer.
+DetectorWorker::DetectorWorker(DetectorWorker&& other) noexcept : impl_(other.impl_) {
+    other.impl_ = nullptr;
+}
+
+/// @brief Move assignment releases current resources and takes ownership from @p other.
+DetectorWorker& DetectorWorker::operator=(DetectorWorker&& other) noexcept {
+    if (this != &other) {
+        reset();
+        impl_ = other.impl_;
+        other.impl_ = nullptr;
+    }
+    return *this;
+}
+
+/// @brief Returns whether this worker owns an implementation.
+DetectorWorker::operator bool() const noexcept {
+    return impl_ != nullptr;
+}
+
+/// @brief Creates a detector worker and starts its background thread.
+Result<DetectorWorker> DetectorWorker::create(const DetectorConfig& config,
+                                              const DetectorWorkerOptions& options) noexcept {
+    if (options.binding_contexts <= 0) {
+        return Result<DetectorWorker>::Err(Status::Invalid("DetectorWorker::create: binding_contexts must be > 0"));
+    }
+    if (options.binding_context_index < 0 || options.binding_context_index >= options.binding_contexts) {
+        return Result<DetectorWorker>::Err(Status::Invalid("DetectorWorker::create: binding_context_index out of range"));
+    }
+    if (options.use_bound && (options.binding_width <= 0 || options.binding_height <= 0)) {
+        return Result<DetectorWorker>::Err(
+            Status::Invalid("DetectorWorker::create: bound mode requires positive binding_width/binding_height"));
+    }
+
+    auto det_res = Detector::create(config);
+    if (!det_res.ok()) return Result<DetectorWorker>::Err(det_res.status());
+
+    Detector det = std::move(det_res.value());
+    if (options.use_bound) {
+        Status bs = det.prepare_binding(options.binding_width, options.binding_height, options.binding_contexts);
+        if (!bs.ok()) return Result<DetectorWorker>::Err(bs);
+    }
+
+    std::unique_ptr<detail::DetectorWorkerImpl> p;
+    try {
+        p.reset(new (std::nothrow) detail::DetectorWorkerImpl(std::move(det), options));
+        if (!p) return Result<DetectorWorker>::Err(Status::OutOfMemory("DetectorWorker::create: alloc failed"));
+
+        Status ss = p->start();
+        if (!ss.ok()) return Result<DetectorWorker>::Err(ss);
+    } catch (const std::exception& e) {
+        return Result<DetectorWorker>::Err(Status::Internal(std::string("DetectorWorker::create: ") + e.what()));
+    } catch (...) {
+        return Result<DetectorWorker>::Err(Status::Internal("DetectorWorker::create: unknown exception"));
+    }
+
+    DetectorWorker w;
+    w.impl_ = p.release();
+    return Result<DetectorWorker>::Ok(std::move(w));
+}
+
+/// @brief Submits one image to the background worker.
+Status DetectorWorker::submit(const Image& image) noexcept {
+    if (!impl_) return Status::Invalid("DetectorWorker::submit: invalid worker");
+    return impl_->submit(image);
+}
+
+/// @brief Returns the current worker state.
+DetectorWorkerState DetectorWorker::state() const noexcept {
+    return impl_ ? impl_->state() : DetectorWorkerState::Idle;
+}
+
+/// @brief Takes the completed result from the worker.
+Result<VecQuad> DetectorWorker::take_result() noexcept {
+    if (!impl_) return Result<VecQuad>::Err(Status::Invalid("DetectorWorker::take_result: invalid worker"));
+    return impl_->take_result();
+}
+
+/// @brief Stops the background worker and clears the implementation pointer.
+void DetectorWorker::reset() noexcept {
+    delete impl_;
+    impl_ = nullptr;
 }
 
 /**

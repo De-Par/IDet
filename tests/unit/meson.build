@@ -6,6 +6,7 @@ unit_tests_sources = files(
     'test_nms.cpp',
     'test_letterbox.cpp',
     'test_yolo_decode.cpp',
+    'test_detector_worker.cpp',
 )
 
 idet_unit_tests_exe = executable(

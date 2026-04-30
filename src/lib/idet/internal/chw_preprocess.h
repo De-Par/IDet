@@ -27,6 +27,10 @@
 #include <cstddef>
 #include <cstdint>
 
+#if defined(_OPENMP)
+    #include <omp.h>
+#endif
+
 namespace idet::internal {
 
 /**
@@ -79,7 +83,13 @@ inline void bgr_u8_to_chw_f32_same_size(const cv::Mat& bgr, float* dst_chw, cons
     // - Per-row pointers are precomputed to avoid per-pixel index multiplications and to give
     //   the compiler an easier time auto-vectorizing the inner loop.
     constexpr int kParallelMinPixels = 64 * 64;
-    const bool parallel = (H * W) >= kParallelMinPixels;
+    bool parallel = (H * W) >= kParallelMinPixels;
+#if defined(_OPENMP)
+    // Avoid spawning a nested OpenMP region when preprocessing is called from tiled inference.
+    // The outer tile loop already owns the CPU budget; keeping the inner loop serial prevents
+    // oversubscription and removes repeated fork/join overhead in tile-heavy pipelines.
+    parallel = parallel && !omp_in_parallel();
+#endif
 
 #if defined(_OPENMP)
 #pragma omp parallel for schedule(static) if (parallel)

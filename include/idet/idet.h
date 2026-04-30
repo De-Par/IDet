@@ -348,7 +348,7 @@ struct DetectorConfig final {
      * @return @ref Status::Ok() if the configuration is valid, otherwise a non-OK status describing
      *         the first detected issue.
      */
-    [[nodiscard]] Status validate() const noexcept;
+    [[nodiscard]] IDET_API Status validate() const noexcept;
 
     /**
      * @brief Convenience factory to build a minimal config for a given task and model path.
@@ -360,12 +360,14 @@ struct DetectorConfig final {
      * @note
      * The chosen engine kind may be inferred or left to defaults depending on the implementation.
      */
-    static DetectorConfig setup(Task task, std::string model_path);
+    static IDET_API DetectorConfig setup(Task task, std::string model_path);
 };
 
 namespace detail {
 /** @brief Internal detector vtable type (not part of the public API). */
 struct DetectorVTable;
+/** @brief Internal async worker implementation type (not part of the public API). */
+struct DetectorWorkerImpl;
 } // namespace detail
 
 /**
@@ -542,6 +544,127 @@ class IDET_API Detector final {
      * The vtable allows calling engine-specific implementations without exposing their types.
      */
     const detail::DetectorVTable* vtbl_ = nullptr;
+};
+
+/**
+ * @brief State of a single-flight asynchronous detector worker.
+ *
+ * The worker accepts at most one submitted image at a time. A completed result must be consumed
+ * with @ref DetectorWorker::take_result before submitting the next image.
+ */
+enum class DetectorWorkerState : std::uint8_t {
+    /** Worker is ready to accept a new image. */
+    Idle = 0,
+    /** Worker owns a submitted image and detection is still running. */
+    Running = 1,
+    /** Detection finished; call @ref DetectorWorker::take_result to retrieve the result. */
+    Ready = 2,
+};
+
+/**
+ * @brief Options for @ref DetectorWorker.
+ *
+ * These options define how the worker owns submitted images and whether it uses a prepared
+ * bound I/O context. CPU/ORT/OpenMP resource budgets still come from @ref DetectorConfig::runtime.
+ */
+struct DetectorWorkerOptions {
+    /**
+     * @brief Deep-copy submitted images before handing them to the worker thread.
+     *
+     * Default is true because it is lifetime-safe for non-owning @ref Image views. For maximum
+     * throughput, set this to false only when the submitted @ref Image carries an owner token or
+     * the caller guarantees that the backing memory stays immutable until the result is ready.
+     */
+    bool copy_input = true;
+
+    /**
+     * @brief Use @ref Detector::detect_bound inside the worker.
+     *
+     * When enabled, @ref binding_width and @ref binding_height must be positive, and the worker
+     * prepares binding during creation.
+     */
+    bool use_bound = false;
+
+    /** @brief Prepared binding width used when @ref use_bound is true. */
+    int binding_width = 0;
+
+    /** @brief Prepared binding height used when @ref use_bound is true. */
+    int binding_height = 0;
+
+    /** @brief Number of binding contexts to prepare. Single-flight workers usually need one. */
+    int binding_contexts = 1;
+
+    /** @brief Binding context index used by the worker when @ref use_bound is true. */
+    int binding_context_index = 0;
+};
+
+/**
+ * @brief Single-flight asynchronous detector runner for pipeline integration.
+ *
+ * @details
+ * @ref DetectorWorker owns one @ref Detector and one background thread. It is intentionally
+ * single-flight: submit an image, keep doing other work, poll @ref state, then call
+ * @ref take_result when the state becomes @ref DetectorWorkerState::Ready. This avoids exposing
+ * an unbounded queue in a hot loop and makes backpressure explicit to the caller.
+ *
+ * Resource model:
+ * - ORT/OpenMP resource budgets are configured through @ref DetectorConfig::runtime.
+ * - Optional bound I/O is configured through @ref DetectorWorkerOptions.
+ * - The worker does not call @ref setup_runtime_policy automatically because that function may
+ *   change process-global OpenCV/OpenMP state. Applications embedding IDet should apply global
+ *   runtime policy explicitly at process setup time if they need it.
+ *
+ * Thread-safety:
+ * - @ref state is designed for cheap polling from a hot loop while the worker is running.
+ * - Serialize calls to @ref submit and @ref take_result from the application side.
+ * - Destructor waits for an in-flight task to finish before the worker thread exits.
+ */
+class IDET_API DetectorWorker final {
+  public:
+    /** @brief Constructs an empty worker. */
+    DetectorWorker() noexcept = default;
+
+    /** @brief Stops the worker thread and releases detector resources. */
+    ~DetectorWorker() noexcept;
+
+    /** @brief Move-constructs a worker. */
+    DetectorWorker(DetectorWorker&& other) noexcept;
+
+    /** @brief Move-assigns a worker. */
+    DetectorWorker& operator=(DetectorWorker&& other) noexcept;
+
+    DetectorWorker(const DetectorWorker&) = delete;
+    DetectorWorker& operator=(const DetectorWorker&) = delete;
+
+    /** @brief Returns true when this object owns a live worker implementation. */
+    explicit operator bool() const noexcept;
+
+    /** @brief Create a worker and initialize its detector. */
+    static Result<DetectorWorker> create(const DetectorConfig& config,
+                                         const DetectorWorkerOptions& options = {}) noexcept;
+
+    /**
+     * @brief Submit one image for asynchronous detection.
+     *
+     * Returns an error if the worker is running or if a previous result has not been consumed.
+     */
+    Status submit(const Image& image) noexcept;
+
+    /** @brief Returns the current worker state. */
+    DetectorWorkerState state() const noexcept;
+
+    /**
+     * @brief Retrieve the completed result and return the worker to idle.
+     *
+     * Returns an error if no completed result is currently available.
+     */
+    Result<VecQuad> take_result() noexcept;
+
+    /** @brief Stop the worker and release resources. */
+    void reset() noexcept;
+
+  private:
+    detail::DetectorWorkerImpl* impl_ = nullptr;
 };
 
 /**

@@ -40,6 +40,10 @@
 #include <new>
 #include <utility>
 
+#if defined(_OPENMP)
+    #include <omp.h>
+#endif
+
 namespace idet::engine {
 
 namespace {
@@ -351,7 +355,12 @@ std::vector<algo::Detection> DBNet::postprocess_hw_(const float* prob_hw, int ou
     cv::Mat prob2;
     cv::Mat bitmap(out_h, out_w, CV_8U);
     constexpr int kParallelMinPixels = 64 * 64;
-    const bool parallel = (out_h * out_w) >= kParallelMinPixels;
+    bool parallel = (out_h * out_w) >= kParallelMinPixels;
+#if defined(_OPENMP)
+    // DBNet postprocess can run inside tile-level OpenMP. In that case the outer tile loop
+    // already controls concurrency; avoid nested regions and their scheduling overhead.
+    parallel = parallel && !omp_in_parallel();
+#endif
     (void)parallel; // referenced inside the OpenMP `if (parallel)` clause
 
     if (apply_sigmoid_) {
