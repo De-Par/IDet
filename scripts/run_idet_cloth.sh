@@ -110,7 +110,7 @@ common_args=(
 
 tile_args=(
     --tiles_rc 2x2
-    --fixed_hw 416x416
+    --fixed_hw 640x640
     --tile_overlap 0.1
     --threads_intra 1
     --threads_inter 1

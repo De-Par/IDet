@@ -2,13 +2,18 @@
 
 #include <yuvv.h>
 
+#include <cstdlib>
+#include <iostream>
+
 int main(int argc, char** argv) {
 
     yuvv::ViewerConfig cfg;
+    bool help_requested = false;
 
     // Parse options from user
-    if (!parse_args(argc, argv, cfg)) {
-        print_usage(argv[0]);
+    if (!parse_args(argc, argv, cfg, help_requested)) {
+        if (help_requested) return EXIT_SUCCESS;
+        print_usage(std::cerr, argv[0]);
         return EXIT_FAILURE;
     }
 

@@ -11,6 +11,7 @@ struct AppConfig {
     std::string out_path = "result.png";
     int bench_iters = 100;
     int warmup_iters = 20;
+    bool help_requested = false;
     bool is_draw = true;
     bool is_dump = true;
     bool setup_runtime_policy = true;

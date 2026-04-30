@@ -16,6 +16,7 @@ int main(int argc, char** argv) {
 
         // Parse arguments and fill configs
         if (!cli::parse_arguments(argc, argv, app_config, det_config)) {
+            if (app_config.help_requested) return 0;
             std::cerr << "[ERROR] Failed to parse arguments!\n";
             return 1;
         }

@@ -170,11 +170,11 @@ inline std::string grid_to_string(const idet::GridSpec& g, bool treat_zeros_as_a
     return oss.str();
 }
 
-static void print_usage(const char* app) {
-    std::cerr << "Usage:\n"
-              << "  " << app << " --model <path.onnx> --mode [text|face|cloth] --image <path> [options]\n\n"
-              << "Required:\n"
-              << "  --model             STR      ONNX model path\n"
+static void print_usage(std::ostream& os, const char* app) {
+    os << "Usage:\n"
+              << "  " << app << " --mode [text|face|cloth] --image <path> [--model <path.onnx>] [options]\n\n"
+              << "Required / model input:\n"
+              << "  --model             STR      ONNX model path (optional only when embedded model is available)\n"
               << "  --mode              STR      Detector mode: text | face | cloth\n"
               << "  --image             STR      Input image path\n\n"
               << "Generic:\n"
@@ -197,8 +197,8 @@ static void print_usage(const char* app) {
               << "  --bind_io           0|1      Use ORT I/O binding. Default: 0\n"
               << "  --fixed_hw          HxW      Fixed input size, e.g. 480x480. Disable: off|no|0\n\n"
               << "Runtime:\n"
-              << "  --threads_intra      N       Internal pull of ORT for graph operations (inside node). Default: 1\n"
-              << "  --threads_inter      N       Prallelism between nodes of graph. Default: 1\n"
+              << "  --threads_intra      N       ORT intra-op threads (inside operators). Default: 1\n"
+              << "  --threads_inter      N       ORT inter-op threads (between graph nodes). Default: 1\n"
               << "  --tile_omp           N       OpenMP threads for tiling. Default: 1\n"
               << "  --runtime_policy    0|1      Setup runtime policy for session (mem/cpus binding + opencv "
                  "suppression). Default: 1\n"
@@ -299,7 +299,7 @@ void print_config(std::ostream& os, const AppConfig& ac, const idet::DetectorCon
 
 bool parse_arguments(int argc, char** argv, AppConfig& ac, idet::DetectorConfig& dc) {
     if (argc <= 1) {
-        print_usage(argv[0]);
+        print_usage(std::cerr, argv[0]);
         return false;
     }
 
@@ -307,7 +307,8 @@ bool parse_arguments(int argc, char** argv, AppConfig& ac, idet::DetectorConfig&
         std::string a = argv[i];
 
         if (a == "--help" || a == "-h") {
-            print_usage(argv[0]);
+            ac.help_requested = true;
+            print_usage(std::cout, argv[0]);
             return false;
         }
 
@@ -490,20 +491,20 @@ bool parse_arguments(int argc, char** argv, AppConfig& ac, idet::DetectorConfig&
 
         } else {
             std::cerr << "[ERROR] Unknown argument: " << a << "\n";
-            print_usage(argv[0]);
+            print_usage(std::cerr, argv[0]);
             return false;
         }
     }
 
     if (ac.image_path.empty()) {
         std::cerr << "[ERROR] Missing required argument: --image\n";
-        print_usage(argv[0]);
+        print_usage(std::cerr, argv[0]);
         return false;
     }
 
     if (dc.task == idet::Task::None) {
         std::cerr << "[ERROR] Missing required argument: --mode\n";
-        print_usage(argv[0]);
+        print_usage(std::cerr, argv[0]);
         return false;
     }
 
@@ -512,7 +513,7 @@ bool parse_arguments(int argc, char** argv, AppConfig& ac, idet::DetectorConfig&
     }
 
     if (dc.model_path.empty()) {
-        std::cerr << "[WARN] Missing required argument: --model (will fallback to blob model if available)\n";
+        std::cerr << "[WARN] Missing --model (will fallback to embedded model if available)\n";
     }
 
     return true;

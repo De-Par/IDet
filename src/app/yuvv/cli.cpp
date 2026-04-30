@@ -42,8 +42,8 @@ static bool parse_format_str(const std::string& s, yuvv::YuvFormat& out) {
     return false;
 }
 
-void print_usage(const char* argv0) {
-    std::cerr << "Usage:\n"
+void print_usage(std::ostream& os, const char* argv0) {
+    os << "Usage:\n"
               << "  " << argv0
               << " --file <path.yuv> --w <width> --h <height> --fmt <i420|nv12|nv21|yuy2|uyvy> [options]\n\n"
               << "Options:\n"
@@ -60,7 +60,7 @@ void print_usage(const char* argv0) {
               << "  q/ESC  quit\n";
 }
 
-bool parse_args(int argc, char** argv, yuvv::ViewerConfig& cfg) {
+bool parse_args(int argc, char** argv, yuvv::ViewerConfig& cfg, bool& help_requested) {
     auto need = [&](int& i, const char* name) -> const char* {
         if (i + 1 >= argc) {
             std::cerr << "Missing value after " << name << "\n";
@@ -109,6 +109,8 @@ bool parse_args(int argc, char** argv, yuvv::ViewerConfig& cfg) {
         } else if (k == "--no-overlay") {
             cfg.overlay_info = false;
         } else if (k == "--help" || k == "-h") {
+            help_requested = true;
+            print_usage(std::cout, argv[0]);
             return false;
         } else {
             std::cerr << "Unknown argument: " << k << "\n";

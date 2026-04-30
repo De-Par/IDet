@@ -1,5 +1,7 @@
 # C++ Integration Guide
 
+[Back to README](../README.md) | [Documentation index](index.md) | Previous: [Quick Start](quick-start.md) | Next: [Performance Guide](performance.md)
+
 This guide focuses on embedding IDet into a larger C++ pipeline where the application owns
 resource policy, scheduling, image lifetime, and backpressure.
 
@@ -186,3 +188,5 @@ A robust host pipeline usually looks like this:
 4. Use `state()` for cheap polling.
 5. Keep queueing and cancellation outside IDet.
 6. Tune ORT intra-op threads, tile OpenMP threads, and worker count together to avoid oversubscription.
+
+🔝 [Back to top](#c-integration-guide)
