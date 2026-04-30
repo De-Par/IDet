@@ -25,8 +25,7 @@
 #include "algo/nms.h"
 #include "algo/tiling.h"
 #include "engine/engine_factory.h"
-#include "internal/cv_bgr.h"
-#include "internal/opencv_headers.h" // IWYU pragma: keep
+#include "internal/bgr_image.h"
 #include "platform/runtime_policy_setup.h"
 
 #include <algorithm>
@@ -166,7 +165,7 @@ namespace detail {
  * @details
  * Responsibilities:
  * - validate and initialize the engine (eagerly in create(), lazily if needed)
- * - convert input @ref idet::Image to a BGR `cv::Mat` representation
+ * - convert input @ref idet::Image to an internal BGR image representation
  * - dispatch to single-pass or tiled inference
  * - apply common postprocessing:
  *   - minimum ROI size filtering
@@ -290,7 +289,7 @@ class DetectorImpl final {
      * @details
      * Steps:
      *  1) Ensure engine is initialized.
-     *  2) Convert input image to BGR `cv::Mat`.
+     *  2) Convert input image to an internal BGR view/holder.
      *  3) Decide single vs tiled execution.
      *  4) Enforce binding requirements for bound inference.
      *  5) Run inference (single or tiled).
@@ -304,12 +303,10 @@ class DetectorImpl final {
             if (!s.ok()) return Result<VecQuad>::Err(s);
         }
 
-        // Convert public Image into a BGR cv::Mat view (implementation defined).
-        auto bm_res = internal::BgrMat::from(Image(img));
+        // Convert public Image into an OpenCV-free BGR view/holder.
+        auto bm_res = internal::BgrImage::from(Image(img));
         if (!bm_res.ok()) return Result<VecQuad>::Err(bm_res.status());
-        // bm_res.value().mat() returns an lvalue reference into the BgrMat owned by bm_res.
-        // bm_res lives until the end of this function, so the reference stays valid.
-        const cv::Mat& bgr = bm_res.value().mat();
+        const internal::BgrImageView& bgr = bm_res.value().view();
 
         const bool want_bound = force_bound || (cfg_.infer.bind_io && binding_ready_);
 
@@ -348,7 +345,7 @@ class DetectorImpl final {
     }
 
     /// @brief Runs inference on a single image (no tiling).
-    Result<std::vector<algo::Detection>> run_single_(const cv::Mat& bgr, bool bound, int ctx) noexcept {
+    Result<std::vector<algo::Detection>> run_single_(const internal::BgrImageView& bgr, bool bound, int ctx) noexcept {
         return bound ? engine_->infer_bound(bgr, ctx) : engine_->infer_unbound(bgr);
     }
 
@@ -359,7 +356,7 @@ class DetectorImpl final {
      * If the user explicitly called `detect_bound(ctx)`, bound tiling must not
      * parallelize across other contexts to preserve the "single explicit ctx" contract.
      */
-    Result<std::vector<algo::Detection>> run_tiled_(const cv::Mat& bgr, bool bound, int ctx,
+    Result<std::vector<algo::Detection>> run_tiled_(const internal::BgrImageView& bgr, bool bound, int ctx,
                                                     bool explicit_bound_call) noexcept {
         const bool parallel_bound = bound ? (!explicit_bound_call) : false;
 

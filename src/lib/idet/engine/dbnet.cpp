@@ -30,6 +30,8 @@
 #include "algo/geometry.h"
 #include "internal/chw_preprocess.h"
 #include "internal/letterbox.h"
+#include "internal/opencv_adapter.h"
+#include "internal/opencv_geometry.h"
 
 #include <algorithm>
 #include <array>
@@ -286,12 +288,13 @@ Result<idet::internal::TensorDesc> DBNet::probe_output_desc_(int in_h, int in_w)
  * leaves the short side too small. Visually: long horizontal text grew sideways into
  * empty area while still cropping ascenders/descenders.
  */
-std::array<cv::Point2f, 4> DBNet::unclip_rect_like_(const std::array<cv::Point2f, 4>& box, float unclip) noexcept {
+idet::Quad DBNet::unclip_rect_like_(const idet::Quad& box, float unclip) noexcept {
     if (unclip <= 1.0f) return box;
 
     // Recover the rotated rect (center, size, angle) from the four points so we can extend
     // its size along the rect's local axes rather than along the global x/y axes.
-    std::vector<cv::Point2f> pts(box.begin(), box.end());
+    const auto cv_box = internal::opencv_adapter::to_cv_quad(box);
+    std::vector<cv::Point2f> pts(cv_box.begin(), cv_box.end());
     cv::RotatedRect rr = cv::minAreaRect(pts);
 
     const float w = rr.size.width;
@@ -308,9 +311,11 @@ std::array<cv::Point2f, 4> DBNet::unclip_rect_like_(const std::array<cv::Point2f
     cv::Point2f cv_pts[4];
     rr.points(cv_pts);
 
-    std::array<cv::Point2f, 4> out{};
+    std::array<cv::Point2f, 4> out_cv{};
     for (int i = 0; i < 4; ++i)
-        out[i] = cv_pts[i];
+        out_cv[i] = cv_pts[i];
+    idet::Quad out = internal::opencv_adapter::from_cv_quad(out_cv);
+    algo::order_quad(out.data());
     return out;
 }
 
@@ -396,12 +401,12 @@ std::vector<algo::Detection> DBNet::postprocess_hw_(const float* prob_hw, int ou
     // Reuse a single scratch instance across all contours in this postprocess call. The internal
     // mask buffer is allocated lazily on the first contour and then reused; the per-contour
     // vector inside scratch is also reused.
-    algo::ContourScoreScratch contour_scratch;
+    internal::opencv_geometry::ContourScoreScratch contour_scratch;
 
     for (auto& c : contours) {
         if (c.size() < 4) continue;
 
-        const float score = algo::contour_score(prob2, c, contour_scratch);
+        const float score = internal::opencv_geometry::contour_score(prob2, c, contour_scratch);
         if (score < box_thresh_) continue;
 
         cv::RotatedRect rr = cv::minAreaRect(c);
@@ -417,8 +422,10 @@ std::vector<algo::Detection> DBNet::postprocess_hw_(const float* prob_hw, int ou
         if (min_w_ > 0 && ow < (float)min_w_) continue;
         if (min_h_ > 0 && oh < (float)min_h_) continue;
 
-        std::array<cv::Point2f, 4> box{};
-        rr.points(box.data());
+        std::array<cv::Point2f, 4> cv_box{};
+        rr.points(cv_box.data());
+
+        idet::Quad box = internal::opencv_adapter::from_cv_quad(cv_box);
 
         // Apply unclip in probmap space (it's a uniform expansion of the rotated rect, so
         // the result is identical to applying it in network-input space, modulo a constant
@@ -516,11 +523,12 @@ void DBNet::unset_binding() noexcept {
     ctxs_.clear();
 }
 
-Result<std::vector<algo::Detection>> DBNet::infer_unbound(const cv::Mat& bgr) noexcept {
+Result<std::vector<algo::Detection>> DBNet::infer_unbound(const internal::BgrImageView& bgr_view) noexcept {
     try {
+        const cv::Mat bgr = internal::opencv_adapter::wrap_bgr_view(bgr_view);
         if (bgr.empty() || bgr.type() != CV_8UC3) {
             return Result<std::vector<algo::Detection>>::Err(
-                Status::Invalid("DBNet::infer_unbound: expected CV_8UC3 BGR"));
+                Status::Invalid("DBNet::infer_unbound: expected valid BGR view"));
         }
 
         const int ow = bgr.cols;
@@ -559,8 +567,9 @@ Result<std::vector<algo::Detection>> DBNet::infer_unbound(const cv::Mat& bgr) no
     }
 }
 
-Result<std::vector<algo::Detection>> DBNet::infer_bound(const cv::Mat& bgr, int ctx_idx) noexcept {
+Result<std::vector<algo::Detection>> DBNet::infer_bound(const internal::BgrImageView& bgr_view, int ctx_idx) noexcept {
     try {
+        const cv::Mat bgr = internal::opencv_adapter::wrap_bgr_view(bgr_view);
         if (!binding_ready_)
             return Result<std::vector<algo::Detection>>::Err(Status::Invalid("DBNet::infer_bound: binding not ready"));
         if (ctx_idx < 0 || ctx_idx >= contexts_)
@@ -568,7 +577,7 @@ Result<std::vector<algo::Detection>> DBNet::infer_bound(const cv::Mat& bgr, int 
                 Status::Invalid("DBNet::infer_bound: ctx_idx out of range"));
         if (bgr.empty() || bgr.type() != CV_8UC3)
             return Result<std::vector<algo::Detection>>::Err(
-                Status::Invalid("DBNet::infer_bound: expected CV_8UC3 BGR"));
+                Status::Invalid("DBNet::infer_bound: expected valid BGR view"));
 
         auto& c = ctxs_[(std::size_t)ctx_idx];
 

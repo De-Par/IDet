@@ -101,7 +101,7 @@ class DBNet final : public IEngine {
      * @param bgr Input BGR image (CV_8UC3).
      * @return Result with detections or error status.
      */
-    Result<std::vector<algo::Detection>> infer_unbound(const cv::Mat& bgr) noexcept override;
+    Result<std::vector<algo::Detection>> infer_unbound(const internal::BgrImageView& bgr) noexcept override;
 
     /**
      * @brief Run inference in bound mode using a pre-prepared binding context.
@@ -110,7 +110,7 @@ class DBNet final : public IEngine {
      * @param ctx_idx Context index in [0, bound_contexts()).
      * @return Result with detections or error status.
      */
-    Result<std::vector<algo::Detection>> infer_bound(const cv::Mat& bgr, int ctx_idx) noexcept override;
+    Result<std::vector<algo::Detection>> infer_bound(const internal::BgrImageView& bgr, int ctx_idx) noexcept override;
 
   private:
     /**
@@ -247,7 +247,7 @@ class DBNet final : public IEngine {
      * @param unclip Unclip ratio (typically 1.5..2.0). Values <= 1 disable expansion.
      * @return Expanded quad points in the same coordinate system as the input.
      */
-    static std::array<cv::Point2f, 4> unclip_rect_like_(const std::array<cv::Point2f, 4>& box, float unclip) noexcept;
+    static idet::Quad unclip_rect_like_(const idet::Quad& box, float unclip) noexcept;
 
   private:
     /** @brief ONNX input tensor name. */

@@ -10,7 +10,7 @@
  *    back into the full-image coordinate space.
  *
  * Coordinate conventions:
- *  - Tiles are expressed as @c cv::Rect in full-image pixel coordinates.
+ *  - Tiles are expressed as @c idet::internal::RectI in full-image pixel coordinates.
  *  - Detections returned by the engine for a tile are assumed to be in tile-local coordinates
  *    and are shifted by (tile.x, tile.y) when merging.
  *
@@ -28,7 +28,7 @@
 #include "algo/geometry.h"
 #include "engine/engine.h"
 #include "idet.h"
-#include "internal/opencv_headers.h" // IWYU pragma: keep
+#include "internal/bgr_image.h"
 #include "status.h"
 
 #include <vector>
@@ -54,7 +54,7 @@ namespace idet::algo {
  * @param overlap_rel Relative overlap in [0..0.9] applied to the nominal tile size.
  * @return Vector of tile rectangles in full-image coordinates (size is typically rows*cols).
  */
-std::vector<cv::Rect> make_tiles(int img_w, int img_h, const GridSpec& grid, float overlap_rel);
+std::vector<internal::RectI> make_tiles(int img_w, int img_h, const GridSpec& grid, float overlap_rel);
 
 /**
  * @brief Run inference per-tile and merge detections into full-image coordinates.
@@ -88,7 +88,7 @@ std::vector<cv::Rect> make_tiles(int img_w, int img_h, const GridSpec& grid, flo
  *    If OpenMP is unavailable or disabled, this parameter may be ignored.
  *
  * @param eng Engine instance (DBNet/SCRFD/...).
- * @param img_bgr Input image (must be CV_8UC3 BGR).
+ * @param img_bgr Input image view (must be valid BGR U8).
  * @param bound If true, uses bound inference; otherwise uses unbound inference.
  * @param ctx_idx Context index used when @p bound && !@p parallel_bound (must be valid).
  * @param parallel_bound If true, distribute tiles across bound contexts.
@@ -101,8 +101,8 @@ std::vector<cv::Rect> make_tiles(int img_w, int img_h, const GridSpec& grid, flo
  * @warning Bound-mode parallelism requires @ref idet::engine::IEngine::binding_ready to be true
  *          and enough bound contexts for the intended concurrency.
  */
-Result<std::vector<algo::Detection>> infer_tiled(engine::IEngine& eng, const cv::Mat& img_bgr, bool bound, int ctx_idx,
-                                                 bool parallel_bound, const GridSpec& grid, float overlap_rel,
-                                                 int tile_omp_threads) noexcept;
+Result<std::vector<algo::Detection>> infer_tiled(engine::IEngine& eng, const internal::BgrImageView& img_bgr,
+                                                 bool bound, int ctx_idx, bool parallel_bound, const GridSpec& grid,
+                                                 float overlap_rel, int tile_omp_threads) noexcept;
 
 } // namespace idet::algo

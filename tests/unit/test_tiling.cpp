@@ -8,6 +8,7 @@
 
 #include "algo/tiling.h"
 #include "engine/engine.h"
+#include "internal/opencv_headers.h"
 
 #include <algorithm>
 #include <atomic>
@@ -25,7 +26,12 @@ static inline idet::GridSpec grid(int cols, int rows) {
     return g;
 }
 
-static inline bool rect_inside(const cv::Rect& r, int W, int H) {
+static inline idet::internal::BgrImageView bgr_view(const cv::Mat& m) noexcept {
+    if (m.empty() || m.type() != CV_8UC3) return {};
+    return {m.data, m.cols, m.rows, static_cast<std::ptrdiff_t>(m.step)};
+}
+
+static inline bool rect_inside(const idet::internal::RectI& r, int W, int H) {
     if (W <= 0 || H <= 0) return false;
     if (r.width <= 0 || r.height <= 0) return false;
     if (r.x < 0 || r.y < 0) return false;
@@ -35,7 +41,7 @@ static inline bool rect_inside(const cv::Rect& r, int W, int H) {
 }
 
 // Discrete coverage checks are robust and catch subtle bugs. Keep them for SMALL images only
-static void expect_full_cover_no_overlap_discrete(const std::vector<cv::Rect>& tiles, int W, int H) {
+static void expect_full_cover_no_overlap_discrete(const std::vector<idet::internal::RectI>& tiles, int W, int H) {
     ASSERT_GT(W, 0);
     ASSERT_GT(H, 0);
     ASSERT_LE((std::size_t)W * (std::size_t)H, (std::size_t)400 * 400) << "too big for discrete cover check";
@@ -59,7 +65,7 @@ static void expect_full_cover_no_overlap_discrete(const std::vector<cv::Rect>& t
     }
 }
 
-static void expect_full_cover_discrete(const std::vector<cv::Rect>& tiles, int W, int H) {
+static void expect_full_cover_discrete(const std::vector<idet::internal::RectI>& tiles, int W, int H) {
     ASSERT_GT(W, 0);
     ASSERT_GT(H, 0);
     ASSERT_LE((std::size_t)W * (std::size_t)H, (std::size_t)400 * 400) << "too big for discrete cover check";
@@ -85,12 +91,12 @@ static void expect_full_cover_discrete(const std::vector<cv::Rect>& tiles, int W
 
 // --------------------------- Helpers for infer_tiled() verification ---------------------------
 
-static inline bool pt_eq(const cv::Point2f& a, const cv::Point2f& b, float eps = 1e-6f) {
+static inline bool pt_eq(const idet::Point2f& a, const idet::Point2f& b, float eps = 1e-6f) {
     return std::fabs(a.x - b.x) <= eps && std::fabs(a.y - b.y) <= eps;
 }
 
 static inline void expect_det_tl(const idet::algo::Detection& d, float x, float y) {
-    EXPECT_TRUE(pt_eq(d.pts[0], cv::Point2f{x, y}))
+    EXPECT_TRUE(pt_eq(d.pts[0], idet::Point2f{x, y}))
         << "got TL=(" << d.pts[0].x << "," << d.pts[0].y << ") expected (" << x << "," << y << ")";
 }
 
@@ -129,12 +135,14 @@ class DummyEngine final : public idet::engine::IEngine {
         calls_bound.store(0, std::memory_order_relaxed);
     }
 
-    idet::Result<std::vector<idet::algo::Detection>> infer_unbound(const cv::Mat& bgr) noexcept override {
+    idet::Result<std::vector<idet::algo::Detection>> infer_unbound(
+        const idet::internal::BgrImageView& bgr) noexcept override {
         calls_unbound.fetch_add(1, std::memory_order_relaxed);
-        return idet::Result<std::vector<idet::algo::Detection>>::Ok(make_one_det(bgr.cols, bgr.rows, 0.5f));
+        return idet::Result<std::vector<idet::algo::Detection>>::Ok(make_one_det(bgr.width, bgr.height, 0.5f));
     }
 
-    idet::Result<std::vector<idet::algo::Detection>> infer_bound(const cv::Mat& bgr, int ctx_idx) noexcept override {
+    idet::Result<std::vector<idet::algo::Detection>> infer_bound(const idet::internal::BgrImageView& bgr,
+                                                                 int ctx_idx) noexcept override {
         calls_bound.fetch_add(1, std::memory_order_relaxed);
 
         if (ctx_idx >= 0 && ctx_idx < 64) {
@@ -142,7 +150,7 @@ class DummyEngine final : public idet::engine::IEngine {
             used_ctx_mask.fetch_or(bit, std::memory_order_relaxed);
         }
 
-        return idet::Result<std::vector<idet::algo::Detection>>::Ok(make_one_det(bgr.cols, bgr.rows, 0.6f));
+        return idet::Result<std::vector<idet::algo::Detection>>::Ok(make_one_det(bgr.width, bgr.height, 0.6f));
     }
 
     std::atomic<std::uint64_t> used_ctx_mask{0};
@@ -183,10 +191,10 @@ TEST(Tiling, MakeTiles_NoOverlap_2x2_ExactRects_AndPartition) {
     auto tiles = idet::algo::make_tiles(W, H, grid(2, 2), 0.0f);
     ASSERT_EQ(tiles.size(), 4u);
 
-    EXPECT_EQ(tiles[0], cv::Rect(0, 0, 50, 25));
-    EXPECT_EQ(tiles[1], cv::Rect(50, 0, 50, 25));
-    EXPECT_EQ(tiles[2], cv::Rect(0, 25, 50, 25));
-    EXPECT_EQ(tiles[3], cv::Rect(50, 25, 50, 25));
+    EXPECT_EQ(tiles[0], (idet::internal::RectI{0, 0, 50, 25}));
+    EXPECT_EQ(tiles[1], (idet::internal::RectI{50, 0, 50, 25}));
+    EXPECT_EQ(tiles[2], (idet::internal::RectI{0, 25, 50, 25}));
+    EXPECT_EQ(tiles[3], (idet::internal::RectI{50, 25, 50, 25}));
 
     expect_full_cover_no_overlap_discrete(tiles, W, H);
 }
@@ -195,7 +203,7 @@ TEST(Tiling, MakeTiles_NoOverlap_1x1_FullImage) {
     const int W = 77, H = 33;
     auto tiles = idet::algo::make_tiles(W, H, grid(1, 1), 0.0f);
     ASSERT_EQ(tiles.size(), 1u);
-    EXPECT_EQ(tiles[0], cv::Rect(0, 0, W, H));
+    EXPECT_EQ(tiles[0], (idet::internal::RectI{0, 0, W, H}));
 }
 
 TEST(Tiling, MakeTiles_NoOverlap_NonDivisibleDims_PartitionsExactly) {
@@ -214,9 +222,9 @@ TEST(Tiling, MakeTiles_WithOverlap_3x1_ExactRects_ForDivisibleCase) {
     auto tiles = idet::algo::make_tiles(W, H, grid(3, 1), 0.2f);
     ASSERT_EQ(tiles.size(), 3u);
 
-    EXPECT_EQ(tiles[0], cv::Rect(0, 0, 120, 100));
-    EXPECT_EQ(tiles[1], cv::Rect(80, 0, 140, 100));
-    EXPECT_EQ(tiles[2], cv::Rect(180, 0, 120, 100));
+    EXPECT_EQ(tiles[0], (idet::internal::RectI{0, 0, 120, 100}));
+    EXPECT_EQ(tiles[1], (idet::internal::RectI{80, 0, 140, 100}));
+    EXPECT_EQ(tiles[2], (idet::internal::RectI{180, 0, 120, 100}));
 
     expect_full_cover_discrete(tiles, W, H);
 }
@@ -246,11 +254,11 @@ TEST(Tiling, InferTiled_EmptyOrWrongType_ReturnsErr) {
     DummyEngine eng(cfg);
 
     cv::Mat empty;
-    auto r0 = idet::algo::infer_tiled(eng, empty, false, 0, false, grid(2, 1), 0.0f, 1);
+    auto r0 = idet::algo::infer_tiled(eng, bgr_view(empty), false, 0, false, grid(2, 1), 0.0f, 1);
     EXPECT_FALSE(r0.ok());
 
     cv::Mat wrong(10, 10, CV_8UC1);
-    auto r1 = idet::algo::infer_tiled(eng, wrong, false, 0, false, grid(2, 1), 0.0f, 1);
+    auto r1 = idet::algo::infer_tiled(eng, bgr_view(wrong), false, 0, false, grid(2, 1), 0.0f, 1);
     EXPECT_FALSE(r1.ok());
 }
 
@@ -263,7 +271,7 @@ TEST(Tiling, InferTiled_Unbound_OffsetsApplied_2x1_SerialDeterministicOrder) {
     // H=50, W=100
     cv::Mat img(50, 100, CV_8UC3, cv::Scalar(0, 0, 0));
 
-    auto r = idet::algo::infer_tiled(eng, img,
+    auto r = idet::algo::infer_tiled(eng, bgr_view(img),
                                      /*bound=*/false, /*ctx_idx=*/0, /*parallel_bound=*/false, grid(2, 1),
                                      /*overlap=*/0.0f, /*tile_omp_threads=*/1);
     ASSERT_TRUE(r.ok());
@@ -287,7 +295,7 @@ TEST(Tiling, InferTiled_Unbound_OffsetsApplied_1x2_YOffsets_SerialDeterministicO
     // H=100, W=50
     cv::Mat img(100, 50, CV_8UC3, cv::Scalar(0, 0, 0));
 
-    auto r = idet::algo::infer_tiled(eng, img,
+    auto r = idet::algo::infer_tiled(eng, bgr_view(img),
                                      /*bound=*/false, 0, false, grid(1, 2), /*overlap=*/0.0f, /*tile_omp_threads=*/1);
     ASSERT_TRUE(r.ok());
     const auto dets = r.value();
@@ -309,7 +317,7 @@ TEST(Tiling, InferTiled_Unbound_2x2_OffsetsBothAxes_SerialDeterministicOrder) {
     // H=60, W=80 => splits: X:40/40, Y:30/30
     cv::Mat img(60, 80, CV_8UC3, cv::Scalar(0, 0, 0));
 
-    auto r = idet::algo::infer_tiled(eng, img,
+    auto r = idet::algo::infer_tiled(eng, bgr_view(img),
                                      /*bound=*/false, 0, false, grid(2, 2), /*overlap=*/0.0f, /*tile_omp_threads=*/1);
     ASSERT_TRUE(r.ok());
     const auto dets = r.value();
@@ -335,7 +343,7 @@ TEST(Tiling, InferTiled_OverlapStillOffsetsMatchTileOrigins) {
     const auto tiles = idet::algo::make_tiles(img.cols, img.rows, g, overlap);
     ASSERT_EQ(tiles.size(), 2u);
 
-    auto r = idet::algo::infer_tiled(eng, img,
+    auto r = idet::algo::infer_tiled(eng, bgr_view(img),
                                      /*bound=*/false, 0, false, g, overlap, /*tile_omp_threads=*/1);
     ASSERT_TRUE(r.ok());
     const auto dets = r.value();
@@ -352,7 +360,7 @@ TEST(Tiling, InferTiled_Bound_WithoutBinding_ReturnsErr) {
     DummyEngine eng(cfg);
 
     cv::Mat img(50, 100, CV_8UC3, cv::Scalar(0, 0, 0));
-    auto r = idet::algo::infer_tiled(eng, img,
+    auto r = idet::algo::infer_tiled(eng, bgr_view(img),
                                      /*bound=*/true, /*ctx_idx=*/0, /*parallel_bound=*/false, grid(2, 1), 0.0f, 1);
     EXPECT_FALSE(r.ok());
 }
@@ -368,7 +376,7 @@ TEST(Tiling, InferTiled_Bound_Serial_UsesGivenCtx_AndValidatesRange) {
 
     // good ctx
     {
-        auto r = idet::algo::infer_tiled(eng, img,
+        auto r = idet::algo::infer_tiled(eng, bgr_view(img),
                                          /*bound=*/true, /*ctx_idx=*/2, /*parallel_bound=*/false, grid(2, 1), 0.0f, 8);
         ASSERT_TRUE(r.ok());
         EXPECT_EQ(eng.calls_bound.load(), 2);
@@ -381,7 +389,7 @@ TEST(Tiling, InferTiled_Bound_Serial_UsesGivenCtx_AndValidatesRange) {
 
     // out of range ctx should error
     {
-        auto r = idet::algo::infer_tiled(eng, img,
+        auto r = idet::algo::infer_tiled(eng, bgr_view(img),
                                          /*bound=*/true, /*ctx_idx=*/99, /*parallel_bound=*/false, grid(2, 1), 0.0f, 8);
         EXPECT_FALSE(r.ok());
     }
@@ -397,7 +405,7 @@ TEST(Tiling, InferTiled_Bound_Parallel_UsesOnlyValidCtxIds) {
     cv::Mat img(64, 128, CV_8UC3, cv::Scalar(0, 0, 0)); // H=64 W=128
     const auto g = grid(4, 1);                          // 4 tiles
 
-    auto r = idet::algo::infer_tiled(eng, img,
+    auto r = idet::algo::infer_tiled(eng, bgr_view(img),
                                      /*bound=*/true, /*ctx_idx=*/0, /*parallel_bound=*/true, g, 0.0f,
                                      /*tile_omp_threads=*/8);
     ASSERT_TRUE(r.ok());
@@ -418,7 +426,7 @@ TEST(Tiling, InferTiled_Unbound_BasicRun_Succeeds) {
     DummyEngine eng(cfg);
 
     cv::Mat img(32, 64, CV_8UC3, cv::Scalar(0, 0, 0));
-    auto r = idet::algo::infer_tiled(eng, img, /*bound=*/false, 0, false, grid(4, 1), 0.0f, 1);
+    auto r = idet::algo::infer_tiled(eng, bgr_view(img), /*bound=*/false, 0, false, grid(4, 1), 0.0f, 1);
     ASSERT_TRUE(r.ok());
     EXPECT_EQ(eng.calls_unbound.load(), 4);
 }

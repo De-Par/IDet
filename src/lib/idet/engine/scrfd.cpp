@@ -26,6 +26,7 @@
 
 #include "internal/chw_preprocess.h"
 #include "internal/letterbox.h"
+#include "internal/opencv_adapter.h"
 
 #include <algorithm>
 #include <cmath>
@@ -152,10 +153,10 @@ inline float SCRFD::sigmoid_(float x) noexcept {
 algo::Detection SCRFD::rect_to_det_(float x1, float y1, float x2, float y2, float score) {
     algo::Detection d;
     d.score = score;
-    d.pts[0] = cv::Point2f(x1, y1);
-    d.pts[1] = cv::Point2f(x2, y1);
-    d.pts[2] = cv::Point2f(x2, y2);
-    d.pts[3] = cv::Point2f(x1, y2);
+    d.pts[0] = {x1, y1};
+    d.pts[1] = {x2, y1};
+    d.pts[2] = {x2, y2};
+    d.pts[3] = {x1, y2};
     return d;
 }
 
@@ -661,11 +662,12 @@ void SCRFD::unset_binding() noexcept {
  * @details
  * Probes heads lazily on first call if @ref heads_ is empty (export-dependent).
  */
-Result<std::vector<algo::Detection>> SCRFD::infer_unbound(const cv::Mat& bgr) noexcept {
+Result<std::vector<algo::Detection>> SCRFD::infer_unbound(const internal::BgrImageView& bgr_view) noexcept {
     try {
+        const cv::Mat bgr = internal::opencv_adapter::wrap_bgr_view(bgr_view);
         if (bgr.empty() || bgr.type() != CV_8UC3) {
             return Result<std::vector<algo::Detection>>::Err(
-                Status::Invalid("SCRFD::infer_unbound: expected CV_8UC3 BGR"));
+                Status::Invalid("SCRFD::infer_unbound: expected valid BGR view"));
         }
 
         idet::internal::LetterboxInfo lb;
@@ -714,8 +716,9 @@ Result<std::vector<algo::Detection>> SCRFD::infer_unbound(const cv::Mat& bgr) no
  * @pre @ref binding_ready() is true and ctx_idx is valid.
  * @note The implementation assumes the bound input shape is (align_up(bound_w_,32), align_up(bound_h_,32)).
  */
-Result<std::vector<algo::Detection>> SCRFD::infer_bound(const cv::Mat& bgr, int ctx_idx) noexcept {
+Result<std::vector<algo::Detection>> SCRFD::infer_bound(const internal::BgrImageView& bgr_view, int ctx_idx) noexcept {
     try {
+        const cv::Mat bgr = internal::opencv_adapter::wrap_bgr_view(bgr_view);
         if (!binding_ready_)
             return Result<std::vector<algo::Detection>>::Err(Status::Invalid("SCRFD::infer_bound: binding not ready"));
         if (ctx_idx < 0 || ctx_idx >= contexts_)
@@ -723,7 +726,7 @@ Result<std::vector<algo::Detection>> SCRFD::infer_bound(const cv::Mat& bgr, int 
                 Status::Invalid("SCRFD::infer_bound: ctx_idx out of range"));
         if (bgr.empty() || bgr.type() != CV_8UC3)
             return Result<std::vector<algo::Detection>>::Err(
-                Status::Invalid("SCRFD::infer_bound: expected CV_8UC3 BGR"));
+                Status::Invalid("SCRFD::infer_bound: expected valid BGR view"));
 
         auto& c = ctxs_[(std::size_t)ctx_idx];
 

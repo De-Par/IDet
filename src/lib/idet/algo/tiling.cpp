@@ -9,8 +9,8 @@
  *  - @ref idet::algo::infer_tiled : per-tile inference (optionally OpenMP-parallel) with safe bound-mode policy
  *
  * Key design points:
- *  - Tiles are represented as @c cv::Rect in full-image coordinates.
- *  - Tile extraction uses ROI views (@c cv::Mat tile = img_bgr(rc)), i.e. no deep copy.
+ *  - Tiles are represented as @c idet::internal::RectI in full-image coordinates.
+ *  - Tile extraction uses BGR ROI views, i.e. no deep copy.
  *  - Detections produced by engines are assumed to be tile-local and are translated back by (rc.x, rc.y).
  *  - In bound mode, parallel execution is allowed only when there are enough independent contexts
  *    (see @ref idet::engine::IEngine::setup_binding). Contexts are selected as (tid % contexts).
@@ -116,8 +116,8 @@ static inline void offset_detection(algo::Detection& d, int dx, int dy) noexcept
 
 } // namespace
 
-std::vector<cv::Rect> make_tiles(int img_w, int img_h, const GridSpec& grid, float overlap) {
-    std::vector<cv::Rect> out;
+std::vector<internal::RectI> make_tiles(int img_w, int img_h, const GridSpec& grid, float overlap) {
+    std::vector<internal::RectI> out;
 
     if (img_h <= 0 || img_w <= 0) return out;
     if (grid.cols <= 0 || grid.rows <= 0) return out;
@@ -151,22 +151,22 @@ std::vector<cv::Rect> make_tiles(int img_w, int img_h, const GridSpec& grid, flo
             const int ww = std::max(0, x2 - x1);
             const int hh = std::max(0, y2 - y1);
 
-            if (ww > 0 && hh > 0) out.emplace_back(x1, y1, ww, hh);
+            if (ww > 0 && hh > 0) out.push_back({x1, y1, ww, hh});
         }
     }
 
     return out;
 }
 
-Result<std::vector<algo::Detection>> infer_tiled(engine::IEngine& eng, const cv::Mat& img_bgr, bool bound, int ctx_idx,
-                                                 bool parallel_bound, const GridSpec& grid, float overlap_rel,
-                                                 int tile_omp_threads) noexcept {
-    if (img_bgr.empty() || img_bgr.type() != CV_8UC3) {
-        return Result<std::vector<algo::Detection>>::Err(Status::Invalid("infer_tiled: expected CV_8UC3 BGR"));
+Result<std::vector<algo::Detection>> infer_tiled(engine::IEngine& eng, const internal::BgrImageView& img_bgr,
+                                                 bool bound, int ctx_idx, bool parallel_bound, const GridSpec& grid,
+                                                 float overlap_rel, int tile_omp_threads) noexcept {
+    if (!img_bgr.is_valid()) {
+        return Result<std::vector<algo::Detection>>::Err(Status::Invalid("infer_tiled: expected valid BGR view"));
     }
 
-    const int img_h = img_bgr.rows;
-    const int img_w = img_bgr.cols;
+    const int img_h = img_bgr.height;
+    const int img_w = img_bgr.width;
 
     const auto rects = make_tiles(img_w, img_h, grid, overlap_rel);
 
@@ -265,10 +265,10 @@ Result<std::vector<algo::Detection>> infer_tiled(engine::IEngine& eng, const cv:
         for (int i = 0; i < num_tiles; ++i) {
             if (failed.load(std::memory_order_relaxed)) continue;
 
-            const cv::Rect& rc = rects[(std::size_t)i];
+            const internal::RectI& rc = rects[(std::size_t)i];
 
             // Create a view into the source image (no copy): tile shares data with img_bgr.
-            cv::Mat tile = img_bgr(rc);
+            const internal::BgrImageView tile = img_bgr.roi(rc.x, rc.y, rc.width, rc.height);
 
             // Context selection (bound-only):
             // - safe mode: ctx_idx

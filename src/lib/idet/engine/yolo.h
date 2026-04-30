@@ -81,8 +81,8 @@ class YOLO final : public IEngine {
     Status setup_binding(int w, int h, int contexts) noexcept override;
     void unset_binding() noexcept override;
 
-    Result<std::vector<algo::Detection>> infer_unbound(const cv::Mat& bgr) noexcept override;
-    Result<std::vector<algo::Detection>> infer_bound(const cv::Mat& bgr, int ctx_idx) noexcept override;
+    Result<std::vector<algo::Detection>> infer_unbound(const internal::BgrImageView& bgr) noexcept override;
+    Result<std::vector<algo::Detection>> infer_bound(const internal::BgrImageView& bgr, int ctx_idx) noexcept override;
 
   public:
     /**

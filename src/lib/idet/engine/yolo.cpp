@@ -13,6 +13,7 @@
 
 #include "internal/chw_preprocess.h"
 #include "internal/letterbox.h"
+#include "internal/opencv_adapter.h"
 
 #include <algorithm>
 #include <array>
@@ -321,10 +322,10 @@ std::vector<algo::Detection> YOLO::decode_in_graph_nms_(const std::vector<Ort::V
 
         algo::Detection d;
         d.score = score;
-        d.pts[0] = cv::Point2f(x1, y1);
-        d.pts[1] = cv::Point2f(x2, y1);
-        d.pts[2] = cv::Point2f(x2, y2);
-        d.pts[3] = cv::Point2f(x1, y2);
+        d.pts[0] = {x1, y1};
+        d.pts[1] = {x2, y1};
+        d.pts[2] = {x2, y2};
+        d.pts[3] = {x1, y2};
         dets.push_back(d);
     }
 
@@ -412,10 +413,10 @@ std::vector<algo::Detection> YOLO::decode_raw_buffer(const float* data, std::int
 
         algo::Detection d;
         d.score = score;
-        d.pts[0] = cv::Point2f(x1, y1);
-        d.pts[1] = cv::Point2f(x2, y1);
-        d.pts[2] = cv::Point2f(x2, y2);
-        d.pts[3] = cv::Point2f(x1, y2);
+        d.pts[0] = {x1, y1};
+        d.pts[1] = {x2, y1};
+        d.pts[2] = {x2, y2};
+        d.pts[3] = {x1, y2};
         dets.push_back(d);
     }
 
@@ -447,11 +448,12 @@ std::vector<algo::Detection> YOLO::decode_(const std::vector<Ort::Value>& outs,
     return {};
 }
 
-Result<std::vector<algo::Detection>> YOLO::infer_unbound(const cv::Mat& bgr) noexcept {
+Result<std::vector<algo::Detection>> YOLO::infer_unbound(const internal::BgrImageView& bgr_view) noexcept {
     try {
+        const cv::Mat bgr = internal::opencv_adapter::wrap_bgr_view(bgr_view);
         if (bgr.empty() || bgr.type() != CV_8UC3)
             return Result<std::vector<algo::Detection>>::Err(
-                Status::Invalid("YOLO::infer_unbound: expected CV_8UC3 BGR"));
+                Status::Invalid("YOLO::infer_unbound: expected valid BGR view"));
 
         int in_w = 0, in_h = 0;
         compute_input_size_(bgr.cols, bgr.rows, in_w, in_h);
@@ -596,15 +598,16 @@ void YOLO::unset_binding() noexcept {
     bound_in_shape_.clear();
 }
 
-Result<std::vector<algo::Detection>> YOLO::infer_bound(const cv::Mat& bgr, int ctx_idx) noexcept {
+Result<std::vector<algo::Detection>> YOLO::infer_bound(const internal::BgrImageView& bgr_view, int ctx_idx) noexcept {
     try {
+        const cv::Mat bgr = internal::opencv_adapter::wrap_bgr_view(bgr_view);
         if (!binding_ready_)
             return Result<std::vector<algo::Detection>>::Err(Status::Invalid("YOLO::infer_bound: binding not ready"));
         if (ctx_idx < 0 || ctx_idx >= contexts_)
             return Result<std::vector<algo::Detection>>::Err(Status::Invalid("YOLO::infer_bound: ctx_idx out of range"));
         if (bgr.empty() || bgr.type() != CV_8UC3)
             return Result<std::vector<algo::Detection>>::Err(
-                Status::Invalid("YOLO::infer_bound: expected CV_8UC3 BGR"));
+                Status::Invalid("YOLO::infer_bound: expected valid BGR view"));
 
         auto& c = ctxs_[static_cast<std::size_t>(ctx_idx)];
 

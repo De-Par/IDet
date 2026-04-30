@@ -17,15 +17,30 @@
  */
 
 #include "algo/geometry.h"
+#include "internal/opencv_adapter.h"
+#include "internal/opencv_geometry.h"
 
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <utility>
+#include <vector>
 
 namespace idet::algo {
 
-void order_quad(cv::Point2f quad[4]) noexcept {
+struct QuadIouScratch::Impl {
+    std::vector<cv::Point2f> pts;
+    std::vector<cv::Point2f> a;
+    std::vector<cv::Point2f> b;
+    std::vector<cv::Point2f> inter;
+};
+
+QuadIouScratch::QuadIouScratch() : impl(std::make_unique<Impl>()) {}
+QuadIouScratch::~QuadIouScratch() = default;
+QuadIouScratch::QuadIouScratch(QuadIouScratch&&) noexcept = default;
+QuadIouScratch& QuadIouScratch::operator=(QuadIouScratch&&) noexcept = default;
+
+void order_quad(idet::Point2f quad[4]) noexcept {
     // kEpsLex is an absolute pixel-space tolerance for image coordinates and is intentionally
     // not scaled: typical images keep coordinates in O(10^3) and lex tie-breaking only needs to
     // resolve sub-pixel ambiguities.
@@ -42,17 +57,19 @@ void order_quad(cv::Point2f quad[4]) noexcept {
 
     auto absf = [](float x) noexcept { return std::fabs(x); };
 
-    auto is_finite = [](const cv::Point2f& p) noexcept { return std::isfinite(p.x) && std::isfinite(p.y); };
+    auto is_finite = [](const idet::Point2f& p) noexcept { return std::isfinite(p.x) && std::isfinite(p.y); };
 
-    auto sub = [](const cv::Point2f& a, const cv::Point2f& b) noexcept -> cv::Point2f {
+    auto sub = [](const idet::Point2f& a, const idet::Point2f& b) noexcept -> idet::Point2f {
         return {a.x - b.x, a.y - b.y};
     };
 
-    auto cross2 = [](const cv::Point2f& a, const cv::Point2f& b) noexcept -> float { return a.x * b.y - a.y * b.x; };
+    auto cross2 = [](const idet::Point2f& a, const idet::Point2f& b) noexcept -> float {
+        return a.x * b.y - a.y * b.x;
+    };
 
-    auto sqr_len = [](const cv::Point2f& v) noexcept -> float { return v.x * v.x + v.y * v.y; };
+    auto sqr_len = [](const idet::Point2f& v) noexcept -> float { return v.x * v.x + v.y * v.y; };
 
-    auto lex_yx_less = [&](const cv::Point2f& a, const cv::Point2f& b) noexcept {
+    auto lex_yx_less = [&](const idet::Point2f& a, const idet::Point2f& b) noexcept {
         if (a.y < b.y - kEpsLex) return true;
         if (a.y > b.y + kEpsLex) return false;
         return a.x < b.x - kEpsLex;
@@ -61,7 +78,7 @@ void order_quad(cv::Point2f quad[4]) noexcept {
     // 1) NaN/Inf -> deterministic lex fallback
     for (int i = 0; i < 4; ++i) {
         if (!is_finite(quad[i])) {
-            std::array<cv::Point2f, 4> r = {quad[0], quad[1], quad[2], quad[3]};
+            idet::Quad r = {quad[0], quad[1], quad[2], quad[3]};
 
             auto swap_lex = [&](int i0, int i1) noexcept {
                 if (lex_yx_less(r[i1], r[i0])) std::swap(r[i0], r[i1]);
@@ -72,12 +89,12 @@ void order_quad(cv::Point2f quad[4]) noexcept {
             swap_lex(1, 3);
             swap_lex(1, 2);
 
-            const cv::Point2f tl = r[0];
-            const cv::Point2f br = r[3];
-            const cv::Point2f p1 = r[1];
-            const cv::Point2f p2 = r[2];
+            const idet::Point2f tl = r[0];
+            const idet::Point2f br = r[3];
+            const idet::Point2f p1 = r[1];
+            const idet::Point2f p2 = r[2];
 
-            cv::Point2f tr = p1, bl = p2;
+            idet::Point2f tr = p1, bl = p2;
             // TR = more right; tie -> more top
             if (p2.x > p1.x + kEpsLex || (absf(p2.x - p1.x) <= kEpsLex && p2.y < p1.y - kEpsLex)) {
                 tr = p2;
@@ -93,7 +110,7 @@ void order_quad(cv::Point2f quad[4]) noexcept {
     }
 
     // 2) centroid
-    cv::Point2f c;
+    idet::Point2f c;
     c.x = (quad[0].x + quad[1].x + quad[2].x + quad[3].x) * kQuarter;
     c.y = (quad[0].y + quad[1].y + quad[2].y + quad[3].y) * kQuarter;
 
@@ -106,7 +123,7 @@ void order_quad(cv::Point2f quad[4]) noexcept {
     //      sub-pixel quads.
     float max_r2 = 0.f;
     for (int i = 0; i < 4; ++i) {
-        const cv::Point2f v = sub(quad[i], c);
+        const idet::Point2f v = sub(quad[i], c);
         max_r2 = std::max(max_r2, sqr_len(v));
     }
     const float eps_pos = kEpsRel * (std::sqrt(max_r2) + 1.f);
@@ -114,9 +131,9 @@ void order_quad(cv::Point2f quad[4]) noexcept {
 
     // 4) angle ordering without atan2: half-plane + cross. Uses scale-aware epsilons so the
     //    behavior is consistent for both small (~1 px) and large (~10^4 px) quads.
-    auto angle_less = [&](const cv::Point2f& p, const cv::Point2f& q) noexcept {
-        const cv::Point2f vp = sub(p, c);
-        const cv::Point2f vq = sub(q, c);
+    auto angle_less = [&](const idet::Point2f& p, const idet::Point2f& q) noexcept {
+        const idet::Point2f vp = sub(p, c);
+        const idet::Point2f vq = sub(q, c);
 
         // upper half-plane first: (y < 0) or (y ~= 0 and x >= 0)
         const bool up_p = (vp.y < -eps_pos) || (absf(vp.y) <= eps_pos && vp.x >= 0.f);
@@ -137,7 +154,7 @@ void order_quad(cv::Point2f quad[4]) noexcept {
         return p.y < q.y - kEpsLex;
     };
 
-    std::array<cv::Point2f, 4> r = {quad[0], quad[1], quad[2], quad[3]};
+    idet::Quad r = {quad[0], quad[1], quad[2], quad[3]};
 
     // sorting network: 4 elems, 5 comps
     auto swap_if = [&](int i0, int i1) noexcept {
@@ -150,7 +167,7 @@ void order_quad(cv::Point2f quad[4]) noexcept {
     swap_if(1, 2);
 
     // 5) degeneracy check: area2 scaled by quad radius (same scale-aware epsilon as above).
-    auto poly_area2 = [&](const std::array<cv::Point2f, 4>& p) noexcept -> float {
+    auto poly_area2 = [&](const idet::Quad& p) noexcept -> float {
         float a = 0.f;
         for (int i = 0; i < 4; ++i) {
             const int j = (i + 1) & 3;
@@ -173,12 +190,12 @@ void order_quad(cv::Point2f quad[4]) noexcept {
         swap_lex(1, 3);
         swap_lex(1, 2);
 
-        const cv::Point2f tl = r[0];
-        const cv::Point2f br = r[3];
-        const cv::Point2f p1 = r[1];
-        const cv::Point2f p2 = r[2];
+        const idet::Point2f tl = r[0];
+        const idet::Point2f br = r[3];
+        const idet::Point2f p1 = r[1];
+        const idet::Point2f p2 = r[2];
 
-        cv::Point2f tr = p1, bl = p2;
+        idet::Point2f tr = p1, bl = p2;
         if (p2.x > p1.x + kEpsLex || (absf(p2.x - p1.x) <= kEpsLex && p2.y < p1.y - kEpsLex)) {
             tr = p2;
             bl = p1;
@@ -197,7 +214,7 @@ void order_quad(cv::Point2f quad[4]) noexcept {
         if (lex_yx_less(r[i], r[i_tl])) i_tl = i;
     }
 
-    std::array<cv::Point2f, 4> t;
+    idet::Quad t;
     t[0] = r[(i_tl + 0) & 3];
     t[1] = r[(i_tl + 1) & 3];
     t[2] = r[(i_tl + 2) & 3];
@@ -214,6 +231,10 @@ void order_quad(cv::Point2f quad[4]) noexcept {
     quad[2] = t[2];
     quad[3] = t[3];
 }
+
+} // namespace idet::algo
+
+namespace idet::internal::opencv_geometry {
 
 float contour_score(const cv::Mat& prob, const std::vector<cv::Point>& contour, ContourScoreScratch& scratch) {
     if (contour.empty()) return 0.f;
@@ -265,14 +286,18 @@ float contour_score(const cv::Mat& prob, const std::vector<cv::Point>& contour) 
     return contour_score(prob, contour, scratch);
 }
 
-float aabb_iou(const std::array<cv::Point2f, 4>& A, const std::array<cv::Point2f, 4>& B) {
-    auto is_finite = [](const cv::Point2f& p) noexcept { return std::isfinite(p.x) && std::isfinite(p.y); };
+} // namespace idet::internal::opencv_geometry
+
+namespace idet::algo {
+
+float aabb_iou(const idet::Quad& A, const idet::Quad& B) {
+    auto is_finite = [](const idet::Point2f& p) noexcept { return std::isfinite(p.x) && std::isfinite(p.y); };
 
     for (int i = 0; i < 4; ++i) {
         if (!is_finite(A[i]) || !is_finite(B[i])) return 0.f;
     }
 
-    auto minmax = [](const std::array<cv::Point2f, 4>& q) {
+    auto minmax = [](const idet::Quad& q) {
         float minx = q[0].x, miny = q[0].y, maxx = q[0].x, maxy = q[0].y;
         for (int i = 1; i < 4; ++i) {
             minx = std::min(minx, q[i].x);
@@ -307,39 +332,46 @@ float aabb_iou(const std::array<cv::Point2f, 4>& A, const std::array<cv::Point2f
     return iou;
 }
 
-float quad_iou(const std::array<cv::Point2f, 4>& A, const std::array<cv::Point2f, 4>& B, bool use_fast_iou,
-               QuadIouScratch& scratch) {
+float quad_iou(const idet::Quad& A, const idet::Quad& B, bool use_fast_iou, QuadIouScratch& scratch) {
     if (use_fast_iou) return aabb_iou(A, B);
 
-    auto is_finite = [](const cv::Point2f& p) noexcept { return std::isfinite(p.x) && std::isfinite(p.y); };
+    auto is_finite = [](const idet::Point2f& p) noexcept { return std::isfinite(p.x) && std::isfinite(p.y); };
 
     for (int i = 0; i < 4; ++i) {
         if (!is_finite(A[i]) || !is_finite(B[i])) return 0.f;
     }
 
-    // Reuse the scratch vectors. Capacity is preserved across calls; only size is reset.
-    auto make_hull = [&](const std::array<cv::Point2f, 4>& q, std::vector<cv::Point2f>& hull) -> bool {
-        scratch.pts.assign(q.begin(), q.end());
+    auto& cv_pts = scratch.impl->pts;
+    auto& cv_a = scratch.impl->a;
+    auto& cv_b = scratch.impl->b;
+    auto& cv_inter = scratch.impl->inter;
+    cv_pts.reserve(4);
+    cv_a.reserve(4);
+    cv_b.reserve(4);
+    cv_inter.clear();
+    cv_inter.reserve(8);
+
+    auto make_hull = [&](const idet::Quad& q, std::vector<cv::Point2f>& hull) -> bool {
+        cv_pts.clear();
+        for (const auto& p : q)
+            cv_pts.push_back(idet::internal::opencv_adapter::to_cv(p));
         hull.clear();
         hull.reserve(4);
 
-        cv::convexHull(scratch.pts, hull, /*clockwise=*/true, /*returnPoints=*/true);
+        cv::convexHull(cv_pts, hull, /*clockwise=*/true, /*returnPoints=*/true);
 
         if (hull.size() < 3) return false;
         const double area = std::abs(cv::contourArea(hull));
         return area > 1e-9;
     };
 
-    if (!make_hull(A, scratch.a) || !make_hull(B, scratch.b)) return 0.f;
+    if (!make_hull(A, cv_a) || !make_hull(B, cv_b)) return 0.f;
 
-    scratch.inter.clear();
-    scratch.inter.reserve(8);
-
-    float inter_area = (float)cv::intersectConvexConvex(scratch.a, scratch.b, scratch.inter, /*handleNested=*/true);
+    float inter_area = (float)cv::intersectConvexConvex(cv_a, cv_b, cv_inter, /*handleNested=*/true);
     if (!(inter_area > 0.f) || !std::isfinite(inter_area)) return 0.f;
 
-    const float areaA = (float)std::abs(cv::contourArea(scratch.a));
-    const float areaB = (float)std::abs(cv::contourArea(scratch.b));
+    const float areaA = (float)std::abs(cv::contourArea(cv_a));
+    const float areaB = (float)std::abs(cv::contourArea(cv_b));
     if (!(areaA > 0.f) || !(areaB > 0.f)) return 0.f;
 
     const float cap = std::min(areaA, areaB);
@@ -357,7 +389,7 @@ float quad_iou(const std::array<cv::Point2f, 4>& A, const std::array<cv::Point2f
     return iou;
 }
 
-float quad_iou(const std::array<cv::Point2f, 4>& A, const std::array<cv::Point2f, 4>& B, bool use_fast_iou) {
+float quad_iou(const idet::Quad& A, const idet::Quad& B, bool use_fast_iou) {
     // Backwards-compatible overload: allocate scratch on the stack per call.
     QuadIouScratch scratch;
     return quad_iou(A, B, use_fast_iou, scratch);

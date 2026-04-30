@@ -22,7 +22,7 @@
 
 #include "algo/geometry.h"
 #include "idet.h"
-#include "internal/opencv_headers.h" // IWYU pragma: keep
+#include "internal/bgr_image.h"
 #include "internal/ort_headers.h"    // IWYU pragma: keep
 #include "status.h"
 
@@ -52,7 +52,7 @@ Status ensure_ort_api_initialized_() noexcept;
  *
  * @details
  * Engines encapsulate:
- * - preprocessing (OpenCV-based BGR input handling),
+ * - preprocessing (BGR input handling, optionally via backend adapters),
  * - ONNX Runtime session invocation,
  * - decoding raw model outputs into intermediate detections (@ref idet::algo::Detection).
  *
@@ -227,10 +227,10 @@ class IEngine {
      * - returns engine-level detections (e.g., boxes/landmarks) in image coordinates as
      *   @ref idet::algo::Detection objects.
      *
-     * @param bgr Input image (expected BGR, `CV_8UC3`).
+     * @param bgr Input image view (expected BGR U8, 3 channels).
      * @return Result with detections on success, or an error status on failure.
      */
-    virtual Result<std::vector<algo::Detection>> infer_unbound(const cv::Mat& bgr) noexcept = 0;
+    virtual Result<std::vector<algo::Detection>> infer_unbound(const internal::BgrImageView& bgr) noexcept = 0;
 
     /**
      * @brief Run inference in bound mode using a pre-prepared binding context.
@@ -245,13 +245,13 @@ class IEngine {
      * - @p ctx_idx must be in `[0, bound_contexts())`.
      * - Each context should be used exclusively by one concurrent caller at a time.
      *
-     * @param bgr Input image (expected BGR, `CV_8UC3`). Size may be required to match bound shape.
+     * @param bgr Input image view (expected BGR U8, 3 channels). Size may be required to match bound shape.
      * @param ctx_idx Binding context index to use.
      * @return Result with detections on success, or an error status on failure.
      *
      * @pre @ref binding_ready() is true.
      */
-    virtual Result<std::vector<algo::Detection>> infer_bound(const cv::Mat& bgr, int ctx_idx) noexcept = 0;
+    virtual Result<std::vector<algo::Detection>> infer_bound(const internal::BgrImageView& bgr, int ctx_idx) noexcept = 0;
 
   protected:
     /**

@@ -137,7 +137,7 @@ class SCRFD final : public IEngine {
      * @param bgr Input image in BGR format (CV_8UC3).
      * @return Detections in original image coordinates or an error status.
      */
-    Result<std::vector<algo::Detection>> infer_unbound(const cv::Mat& bgr) noexcept override;
+    Result<std::vector<algo::Detection>> infer_unbound(const internal::BgrImageView& bgr) noexcept override;
 
     /**
      * @brief Run inference in bound mode using a prepared binding context.
@@ -148,7 +148,7 @@ class SCRFD final : public IEngine {
      *
      * @pre @ref binding_ready() is true.
      */
-    Result<std::vector<algo::Detection>> infer_bound(const cv::Mat& bgr, int ctx_idx) noexcept override;
+    Result<std::vector<algo::Detection>> infer_bound(const internal::BgrImageView& bgr, int ctx_idx) noexcept override;
 
   private:
     /**
