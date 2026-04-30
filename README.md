@@ -107,6 +107,10 @@ Then run, from repository root:
 "${BUILD_DIR}/examples/hot_loop_worker"
 ```
 
+`sync_detector` runs one image and prints every detected quad. `hot_loop_worker` reads
+`assets/videos/test.yuv` as I420 video by default and processes frames asynchronously while the
+application loop continues its own work.
+
 
 ## Highlights
 

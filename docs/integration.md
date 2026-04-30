@@ -7,8 +7,8 @@ resource policy, scheduling, image lifetime, and backpressure.
 
 Checked examples live in [`examples/`](../examples):
 
-- [`examples/sync_detector.cpp`](../examples/sync_detector.cpp) - direct blocking inference.
-- [`examples/hot_loop_worker.cpp`](../examples/hot_loop_worker.cpp) - single-flight async worker for a hot loop.
+- [`examples/sync_detector.cpp`](../examples/sync_detector.cpp) - direct blocking inference for one image with a detailed result dump.
+- [`examples/hot_loop_worker.cpp`](../examples/hot_loop_worker.cpp) - single-flight async worker for frame-by-frame video processing in a hot loop.
 
 Build them with:
 
@@ -18,6 +18,21 @@ scripts/build.sh force -- -Dbuild_examples=true
 
 The exact output directory depends on the active toolchain profile. Run the produced binaries from
 the repository root so the default `assets/...` paths resolve.
+
+```bash
+"${BUILD_DIR}/examples/sync_detector" \
+  assets/models/paddleocr/ch_ppocr_v2_det.onnx \
+  assets/images/text/small.png
+
+"${BUILD_DIR}/examples/hot_loop_worker" \
+  assets/models/paddleocr/ch_ppocr_v2_det.onnx \
+  assets/videos/test.yuv \
+  1920 1080 3
+```
+
+`hot_loop_worker` expects raw I420 input: `model video width height max_frames`. While the worker
+thread runs detection for a submitted frame, the control loop continues calling
+`do_other_application_work()`.
 
 ## Runtime Ownership
 
