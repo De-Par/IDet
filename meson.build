@@ -47,6 +47,7 @@ use_numa = get_option('use_numa')
 rpath_extra = get_option('install_rpath_extra')
 strict_warn = get_option('strict_warnings')
 build_tests = get_option('build_tests')
+build_examples = get_option('build_examples')
 
 # ------------------------------------------------------------------------
 # Compile / link flags 
@@ -383,6 +384,10 @@ if build_tests
     subdir('tests') # unit tests
 endif
 
+if build_examples
+    subdir('examples') # checked C++ integration examples
+endif
+
 # ------------------------------------------------------------------------
 # Summary log
 # ------------------------------------------------------------------------
@@ -415,6 +420,7 @@ summary(
         'thinlto'      : thinlto,
         'strict_warn'  : strict_warn,
         'build_tests'  : build_tests,
+        'build_examples' : build_examples,
         'fast_math'    : fast_math,
         'cpp_args'     : cxx_args,
         'link_args'    : ld_args,

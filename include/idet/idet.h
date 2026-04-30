@@ -126,9 +126,9 @@ struct Point2f {
 /**
  * @brief Quadrilateral defined by 4 corner points.
  *
- * Corner ordering is engine/postprocess dependent. Unless documented otherwise,
- * do not assume a specific winding order (clockwise/counterclockwise) or a specific
- * starting corner.
+ * Supported built-in engines normalize detections to TL -> TR -> BR -> BL order in image
+ * coordinates. Consumers should still treat the type as a geometric polygon rather than relying
+ * on object-class-specific semantics.
  */
 using Quad = std::array<Point2f, 4>;
 

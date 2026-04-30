@@ -104,6 +104,7 @@ This makes **IDet** suitable for:
     - [Text Detection](#text-detection)
     - [Face Detection](#face-detection)
     - [Cloth Detection](#cloth-detection)
+- [C++ Integration](#c-integration)
 - [Performance Report](#performance-report)
 - [Performance Tuning Guide](#performance-tuning-guide)
 - [IOBinding Deep-Dive](#iobinding-deep-dive)
@@ -649,6 +650,23 @@ scripts/run_idet_cloth.sh
 
 ```bash
 scripts/run_idet_cloth.sh tile
+```
+
+
+## C++ Integration
+
+For production embedding, use the C++ API directly instead of shelling out to the demo CLI.
+The integration guide covers blocking inference, hot-loop polling with `DetectorWorker`, fixed
+shape IOBinding, runtime policy ownership, and `cv::Mat` wrapping at the application boundary:
+
+- [C++ Integration Guide](docs/integration.md)
+- [Blocking detector example](examples/sync_detector.cpp)
+- [Hot-loop worker example](examples/hot_loop_worker.cpp)
+
+Build checked examples with:
+
+```bash
+scripts/build.sh force -- -Dbuild_examples=true
 ```
 
 

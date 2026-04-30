@@ -92,8 +92,15 @@ option(
 )
 
 option(
-    'build_tests', 
-    type        : 'boolean', 
-    value       : true, 
+    'build_tests',
+    type        : 'boolean',
+    value       : true,
     description : 'Build unit tests and run them using GTest',
+)
+
+option(
+    'build_examples',
+    type        : 'boolean',
+    value       : false,
+    description : 'Build checked C++ integration examples',
 )
