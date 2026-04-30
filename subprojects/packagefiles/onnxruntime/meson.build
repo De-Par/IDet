@@ -31,8 +31,13 @@ cmd = [
     '--xnnpack', (get_option('ort_enable_xnnpack') ? '1' : '0'),
     '--extra', get_option('ort_cmake_extra'),
     '--ort-ver', meson.project_version(),
-    '--force',
 ]
+
+if get_option('ort_force_rebuild')
+    cmd += '--force'
+else
+    cmd += '--skip-if-built'
+endif
 
 # Export build-target separately
 onnxruntime_stamp = custom_target(

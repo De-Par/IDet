@@ -15,6 +15,7 @@ project('IDet', ['c', 'cpp'],
 # ------------------------------------------------------------------------
 
 fs = import('fs')
+pkg = import('pkgconfig')
 cpp = meson.get_compiler('cpp')
 cc = meson.get_compiler('c')
 
@@ -331,10 +332,16 @@ endif
 idet_lib_deps = [
     ort_dep,
     opencv_dep,
-    numa_dep,
-    openmp_dep,
     stb_dep,
 ]
+
+if numa_dep.found()
+    idet_lib_deps += numa_dep
+endif
+
+if openmp_dep.found()
+    idet_lib_deps += openmp_dep
+endif
 
 idet_public_inc = include_directories(
     join_paths('include', 'idet'),
@@ -354,6 +361,16 @@ yuvv_lib_deps = [
 
 yuvv_lib_inc = include_directories(
     join_paths('include', 'yuvv'),
+)
+
+install_subdir(
+    join_paths('include', 'idet'),
+    install_dir: get_option('includedir'),
+)
+
+install_subdir(
+    join_paths('include', 'yuvv'),
+    install_dir: get_option('includedir'),
 )
 
 # ------------------------------------------------------------------------

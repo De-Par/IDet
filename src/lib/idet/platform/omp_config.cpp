@@ -52,11 +52,6 @@ static inline void unset_env(const char* key) {
 #endif
 }
 
-static inline const char* safe_getenv(const char* key) {
-    const char* v = std::getenv(key);
-    return (v && *v) ? v : nullptr;
-}
-
 #if defined(__linux__)
 static int effective_cpu_count_from_affinity() {
     long nconf = sysconf(_SC_NPROCESSORS_CONF);
@@ -92,10 +87,17 @@ static int effective_cpu_count_from_affinity() {
 }
 #endif // __linux__
 
+#if defined(_OPENMP)
+static inline const char* safe_getenv(const char* key) {
+    const char* v = std::getenv(key);
+    return (v && *v) ? v : nullptr;
+}
+
 static inline void dump_env_kv(const char* key, const char* label = nullptr) {
     const char* v = safe_getenv(key);
     if (v) std::cout << (label ? label : key) << " = " << v << "\n";
 }
+#endif
 
 /**
  * @brief Prints OpenMP runtime and environment diagnostics to stdout.

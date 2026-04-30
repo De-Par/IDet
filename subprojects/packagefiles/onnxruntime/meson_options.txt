@@ -21,3 +21,9 @@ option('ort_cmake_extra',
     value: '',
     description: 'Extra CMake -D... defines (semicolon-separated), e.g. "onnxruntime_ENABLE_LTO=OFF;onnxruntime_MINIMAL_BUILD=OFF"',
 )
+
+option('ort_force_rebuild',
+    type: 'boolean',
+    value: false,
+    description: 'Force rebuilding cached ONNX Runtime artifacts instead of reusing a matching cache entry',
+)

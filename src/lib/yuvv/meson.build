@@ -59,3 +59,21 @@ endif
 if not yuvv_dep.found()
     error('YUVV library not found')
 endif
+
+if yuvv_libtype in ['shared', 'both']
+    yuvv_pkg_lib = yuvv_lib_shared
+    yuvv_pkg_cflags = ['-DYUVV_USE_SHARED']
+else
+    yuvv_pkg_lib = yuvv_lib_static
+    yuvv_pkg_cflags = []
+endif
+
+pkg.generate(
+    yuvv_pkg_lib,
+    name        : 'YUVV',
+    filebase    : 'yuvv',
+    version     : meson.project_version(),
+    description : 'YUV viewer support library',
+    subdirs     : ['yuvv'],
+    extra_cflags: yuvv_pkg_cflags,
+)

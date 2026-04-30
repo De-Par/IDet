@@ -184,6 +184,8 @@ Result<std::vector<algo::Detection>> infer_tiled(engine::IEngine& eng, const cv:
 #if defined(_OPENMP)
     n_threads = (tile_omp_threads > 0) ? tile_omp_threads : omp_get_max_threads();
     n_threads = std::max(1, n_threads);
+#else
+    (void)tile_omp_threads;
 #endif
 
     /**

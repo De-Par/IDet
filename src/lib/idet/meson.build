@@ -154,6 +154,24 @@ if not idet_dep.found()
     error('IDet public dependency not found')
 endif
 
+if idet_libtype in ['shared', 'both']
+    idet_pkg_lib = idet_lib_shared
+    idet_pkg_cflags = ['-DIDET_USE_SHARED']
+else
+    idet_pkg_lib = idet_lib_static
+    idet_pkg_cflags = []
+endif
+
+pkg.generate(
+    idet_pkg_lib,
+    name        : 'IDet',
+    filebase    : 'idet',
+    version     : meson.project_version(),
+    description : 'CPU-only ROI detection library built on ONNX Runtime',
+    subdirs     : ['idet'],
+    extra_cflags: idet_pkg_cflags,
+)
+
 # -------------------------------------------------------------------------
 # Internal dependency for white-box tests
 #  - exports private include dirs (src/lib/idet)
