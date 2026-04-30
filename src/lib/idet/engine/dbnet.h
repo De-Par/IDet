@@ -117,10 +117,10 @@ class DBNet final : public IEngine {
      * @brief Geometry mapping between original image size and network input size.
      *
      * @details
-     * Pre-processing now uses an aspect-preserving letterbox transform: the source image is
+     * Pre-processing uses an aspect-preserving letterbox transform: the source image is
      * resized by a single uniform @c scale and padded with zeros at the bottom-right of the
-     * (in_w, in_h) input. The legacy non-uniform sx/sy scheme caused boxes to be slightly
-     * stretched/shifted on outputs whose aspect ratio differed from the source.
+     * (in_w, in_h) input. This avoids non-uniform coordinate scaling when output and source
+     * aspect ratios differ.
      *
      * To map a point @c (x_net, y_net) in network input space back to original image
      * coordinates use:
@@ -240,8 +240,7 @@ class DBNet final : public IEngine {
      * paper's intent: long thin text quads expand much more in the short dimension (height)
      * than in the long one (width), which is what visually "makes the text fit".
      *
-     * The legacy implementation scaled corners around the centroid by a uniform factor,
-     * which over-extended the long side and under-extended the short side.
+     * Uniform centroid scaling over-extends the long side and under-extends the short side.
      *
      * @param box Input quad points (any winding) sized in network-input pixel space.
      * @param unclip Unclip ratio (typically 1.5..2.0). Values <= 1 disable expansion.

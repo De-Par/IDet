@@ -287,10 +287,10 @@ Result<idet::internal::TensorDesc> DBNet::probe_output_desc_(int in_h, int in_w)
  * actually fit inside the resulting box.
  *
  * @par Why not just scale around the centroid?
- * The legacy implementation multiplied each corner offset from the centroid by @c unclip.
- * This is equivalent to @c (w * unclip, h * unclip) which over-extends the long side and
- * leaves the short side too small. Visually: long horizontal text grew sideways into
- * empty area while still cropping ascenders/descenders.
+ * Multiplying each corner offset from the centroid by @c unclip is equivalent to
+ * @c (w * unclip, h * unclip): it over-extends the long side and leaves the short side too
+ * small. Visually, long horizontal text grows sideways into empty area while still cropping
+ * ascenders/descenders.
  */
 idet::Quad DBNet::unclip_rect_like_(const idet::Quad& box, float unclip) noexcept {
     if (unclip <= 1.0f) return box;

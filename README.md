@@ -71,7 +71,7 @@ This makes **IDet** suitable for:
 
 ## Documentation
 
-The old monolithic README is split into focused, self-contained pages under `docs/`:
+Detailed documentation is organized into focused, self-contained pages under `docs/`:
 
 | Page | What it covers |
 |:---|:---|

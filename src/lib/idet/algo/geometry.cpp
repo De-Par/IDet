@@ -29,10 +29,10 @@
 namespace idet::algo {
 
 struct QuadIouScratch::Impl {
-    std::vector<cv::Point2f> pts;
-    std::vector<cv::Point2f> a;
-    std::vector<cv::Point2f> b;
-    std::vector<cv::Point2f> inter;
+    std::array<cv::Point2f, 4> pts{};
+    cv::Mat a;
+    cv::Mat b;
+    cv::Mat inter;
 };
 
 QuadIouScratch::QuadIouScratch() : impl(std::make_unique<Impl>()) {}
@@ -341,26 +341,20 @@ float quad_iou(const idet::Quad& A, const idet::Quad& B, bool use_fast_iou, Quad
         if (!is_finite(A[i]) || !is_finite(B[i])) return 0.f;
     }
 
-    auto& cv_pts = scratch.impl->pts;
     auto& cv_a = scratch.impl->a;
     auto& cv_b = scratch.impl->b;
     auto& cv_inter = scratch.impl->inter;
-    cv_pts.reserve(4);
-    cv_a.reserve(4);
-    cv_b.reserve(4);
-    cv_inter.clear();
-    cv_inter.reserve(8);
+    auto& cv_pts = scratch.impl->pts;
+    cv_inter.release();
 
-    auto make_hull = [&](const idet::Quad& q, std::vector<cv::Point2f>& hull) -> bool {
-        cv_pts.clear();
-        for (const auto& p : q)
-            cv_pts.push_back(idet::internal::opencv_adapter::to_cv(p));
-        hull.clear();
-        hull.reserve(4);
+    auto make_hull = [&](const idet::Quad& q, cv::Mat& hull) -> bool {
+        for (std::size_t i = 0; i < q.size(); ++i)
+            cv_pts[i] = idet::internal::opencv_adapter::to_cv(q[i]);
 
-        cv::convexHull(cv_pts, hull, /*clockwise=*/true, /*returnPoints=*/true);
+        cv::Mat pts_mat(static_cast<int>(cv_pts.size()), 1, CV_32FC2, cv_pts.data());
+        cv::convexHull(pts_mat, hull, /*clockwise=*/true, /*returnPoints=*/true);
 
-        if (hull.size() < 3) return false;
+        if (hull.total() < 3) return false;
         const double area = std::abs(cv::contourArea(hull));
         return area > 1e-9;
     };

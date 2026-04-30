@@ -141,15 +141,20 @@ static inline bool in_unit_interval_soft(float v) noexcept {
 
 static inline bool to_strict_convex_quad_cw(const idet::Quad& in, idet::Quad& out) {
     const auto cv_in = idet::internal::opencv_adapter::to_cv_quad(in);
-    std::vector<cv::Point2f> pts(cv_in.begin(), cv_in.end());
-    std::vector<cv::Point2f> hull;
-    cv::convexHull(pts, hull, /*clockwise=*/true, /*returnPoints=*/true);
+    std::array<cv::Point2f, 4> pts{};
+    for (std::size_t i = 0; i < pts.size(); ++i)
+        pts[i] = cv_in[i];
 
-    if (hull.size() != 4) return false;
+    cv::Mat pts_mat(static_cast<int>(pts.size()), 1, CV_32FC2, pts.data());
+    cv::Mat hull;
+    cv::convexHull(pts_mat, hull, /*clockwise=*/true, /*returnPoints=*/true);
+
+    if (hull.total() != 4) return false;
     if (std::abs(cv::contourArea(hull)) < 1e-2) return false;
 
+    const auto* hull_pts = hull.ptr<cv::Point2f>();
     for (int i = 0; i < 4; ++i)
-        out[i] = idet::internal::opencv_adapter::from_cv(hull[(std::size_t)i]);
+        out[i] = idet::internal::opencv_adapter::from_cv(hull_pts[i]);
     return true;
 }
 

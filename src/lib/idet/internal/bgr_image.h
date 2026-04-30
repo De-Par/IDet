@@ -11,6 +11,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <string>
 #include <utility>
 #include <vector>
@@ -31,7 +32,20 @@ struct BgrImageView {
     std::ptrdiff_t stride_bytes = 0;
 
     [[nodiscard]] bool is_valid() const noexcept {
-        return data != nullptr && width > 0 && height > 0 && stride_bytes >= static_cast<std::ptrdiff_t>(width * 3);
+        if (data == nullptr || width <= 0 || height <= 0 || stride_bytes <= 0) return false;
+
+        const auto max_offset = static_cast<std::size_t>(std::numeric_limits<std::ptrdiff_t>::max());
+        const auto min_row = static_cast<std::size_t>(width) * 3U;
+        if (min_row > max_offset) return false;
+
+        const auto stride = static_cast<std::size_t>(stride_bytes);
+        const auto rows_before_last = static_cast<std::size_t>(height - 1);
+        if (rows_before_last != 0 && stride > max_offset / rows_before_last) return false;
+
+        const auto last_row_offset = rows_before_last * stride;
+        if (last_row_offset > max_offset - min_row) return false;
+
+        return stride_bytes >= static_cast<std::ptrdiff_t>(min_row);
     }
 
     [[nodiscard]] const std::uint8_t* row(int y) const noexcept {
@@ -39,7 +53,10 @@ struct BgrImageView {
     }
 
     [[nodiscard]] BgrImageView roi(int x, int y, int w, int h) const noexcept {
-        if (!is_valid() || x < 0 || y < 0 || w <= 0 || h <= 0 || x + w > width || y + h > height) {
+        if (!is_valid() || x < 0 || y < 0 || w <= 0 || h <= 0) {
+            return {};
+        }
+        if (x > width - w || y > height - h) {
             return {};
         }
         return {row(y) + static_cast<std::ptrdiff_t>(x) * 3, w, h, stride_bytes};
@@ -86,7 +103,13 @@ class BgrImage final {
         if (v.format == idet::PixelFormat::BGR_U8) {
             out.hold_ = std::move(img);
             const auto& vv = out.hold_.view();
+            if (vv.stride_bytes > static_cast<std::size_t>(std::numeric_limits<std::ptrdiff_t>::max())) {
+                return idet::Result<BgrImage>::Err(idet::Status::Invalid("BgrImage::from: BGR stride too large"));
+            }
             out.view_ = {vv.data, vv.width, vv.height, static_cast<std::ptrdiff_t>(vv.stride_bytes)};
+            if (!out.view_.is_valid()) {
+                return idet::Result<BgrImage>::Err(idet::Status::Invalid("BgrImage::from: invalid BGR view"));
+            }
             return idet::Result<BgrImage>::Ok(std::move(out));
         }
 
@@ -99,11 +122,37 @@ class BgrImage final {
         }
 
         try {
-            out.owned_.resize(static_cast<std::size_t>(v.width) * static_cast<std::size_t>(v.height) * 3U);
+            std::size_t row_bytes = 0;
+            if (mul_overflow_(static_cast<std::size_t>(v.width), 3U, row_bytes)) {
+                return idet::Result<BgrImage>::Err(idet::Status::Invalid("BgrImage::from: row size overflow"));
+            }
+            if (row_bytes > static_cast<std::size_t>(std::numeric_limits<std::ptrdiff_t>::max())) {
+                return idet::Result<BgrImage>::Err(idet::Status::Invalid("BgrImage::from: row size too large"));
+            }
+
+            std::size_t total_bytes = 0;
+            if (mul_overflow_(row_bytes, static_cast<std::size_t>(v.height), total_bytes)) {
+                return idet::Result<BgrImage>::Err(idet::Status::Invalid("BgrImage::from: image size overflow"));
+            }
+            if (total_bytes > static_cast<std::size_t>(std::numeric_limits<std::ptrdiff_t>::max())) {
+                return idet::Result<BgrImage>::Err(idet::Status::Invalid("BgrImage::from: image span too large"));
+            }
+
+            const auto max_offset = static_cast<std::size_t>(std::numeric_limits<std::ptrdiff_t>::max());
+            const auto src_row_bytes = v.min_row_bytes();
+            const auto rows_before_last = static_cast<std::size_t>(v.height - 1);
+            if (rows_before_last != 0 && v.stride_bytes > max_offset / rows_before_last) {
+                return idet::Result<BgrImage>::Err(idet::Status::Invalid("BgrImage::from: source stride overflow"));
+            }
+            const auto last_row_offset = rows_before_last * v.stride_bytes;
+            if (src_row_bytes > max_offset || last_row_offset > max_offset - src_row_bytes) {
+                return idet::Result<BgrImage>::Err(idet::Status::Invalid("BgrImage::from: source span too large"));
+            }
+
+            out.owned_.resize(total_bytes);
             for (int y = 0; y < v.height; ++y) {
                 const std::uint8_t* src = v.data + static_cast<std::ptrdiff_t>(y) * v.stride_bytes;
-                std::uint8_t* dst =
-                    out.owned_.data() + static_cast<std::size_t>(y) * static_cast<std::size_t>(v.width) * 3U;
+                std::uint8_t* dst = out.owned_.data() + static_cast<std::size_t>(y) * row_bytes;
                 for (int x = 0; x < v.width; ++x) {
                     const std::uint8_t* p = src + static_cast<std::ptrdiff_t>(x) * ch;
                     std::uint8_t* q = dst + static_cast<std::ptrdiff_t>(x) * 3;
@@ -134,7 +183,7 @@ class BgrImage final {
             return idet::Result<BgrImage>::Err(idet::Status::Internal("BgrImage::from: unknown exception"));
         }
 
-        out.view_ = {out.owned_.data(), v.width, v.height, static_cast<std::ptrdiff_t>(v.width * 3)};
+        out.view_ = {out.owned_.data(), v.width, v.height, static_cast<std::ptrdiff_t>(v.width) * 3};
         return idet::Result<BgrImage>::Ok(std::move(out));
     }
 
@@ -143,6 +192,16 @@ class BgrImage final {
     }
 
   private:
+    [[nodiscard]] static bool mul_overflow_(std::size_t a, std::size_t b, std::size_t& out) noexcept {
+        if (a == 0 || b == 0) {
+            out = 0;
+            return false;
+        }
+        if (a > std::numeric_limits<std::size_t>::max() / b) return true;
+        out = a * b;
+        return false;
+    }
+
     idet::Image hold_{};
     std::vector<std::uint8_t> owned_{};
     BgrImageView view_{};

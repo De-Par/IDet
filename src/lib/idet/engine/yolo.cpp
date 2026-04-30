@@ -245,7 +245,7 @@ Status YOLO::probe_layout_(int in_h, int in_w) noexcept {
                     // into class scores). If feat == 5 + something_like_classes is hard to
                     // detect at probe-time without per-class names; use a conservative default:
                     // disable objectness multiplication (matches v8/v11), and let users opt in
-                    // via apply_sigmoid for legacy v5 logit-style exports.
+                    // via apply_sigmoid for YOLOv5-style logit exports.
                     has_objectness_ = false;
                     num_classes_ = static_cast<int>(feat - 4);
                     detections_idx_ = 0;

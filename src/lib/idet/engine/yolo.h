@@ -108,9 +108,9 @@ class YOLO final : public IEngine {
          * @details
          * Output[0] shape: @c [B, 4+nc, N] (channels-first) or @c [B, N, 4+nc]
          * (channels-last). Each anchor stores @c (cx,cy,w,h, [obj], cls_0..cls_{nc-1})
-         * in network input pixel space. Class score = @c cls_max  (legacy YOLOv5 also
-         * multiplies by @c obj; we apply the standard YOLOv8/v11 convention which
-         * already folds objectness into class scores; see @ref has_objectness_).
+         * in network input pixel space. Class score = @c cls_max; YOLOv5-style exports may
+         * also multiply by @c obj, while YOLOv8/v11-style exports usually fold objectness
+         * into class scores; see @ref has_objectness_.
          */
         Raw = 2,
     };
