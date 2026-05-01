@@ -203,10 +203,14 @@ struct Status final {
  * int v = std::move(r).value();
  * @endcode
  *
+ * Invariant:
+ * - @ref ok() is true only when both the status is OK and a value is present.
+ * - @ref Err coerces an accidental OK status into an internal error so callers cannot
+ *   construct a "successful" result without a value.
+ *
  * @warning
  * The @ref value() accessors do not perform checks. Calling @ref value() when @ref ok()
- * is false dereferences an empty @c std::optional and results in undefined behavior.
- * Always check @ref ok() first.
+ * is false is a contract violation. Always check @ref ok() first.
  *
  * @tparam T Value type stored on success.
  */
@@ -235,6 +239,9 @@ template <class T> class Result final {
      */
     static Result Err(Status s) {
         Result r;
+        if (s.ok()) {
+            s = Status::Internal("Result::Err called with OK status");
+        }
         r.status_ = std::move(s);
         return r;
     }
@@ -244,7 +251,7 @@ template <class T> class Result final {
      * @return True if the stored status is OK, otherwise false.
      */
     bool ok() const noexcept {
-        return status_.ok();
+        return status_.ok() && value_.has_value();
     }
 
     /**

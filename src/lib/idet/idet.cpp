@@ -34,6 +34,7 @@
 #include <condition_variable>
 #include <cstddef>
 #include <exception>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <new>
@@ -101,6 +102,31 @@ static inline VecQuad to_public_quads_(const std::vector<algo::Detection>& dets)
     return out;
 }
 
+static inline bool fixed_dim_unset_(const GridSpec& g) noexcept {
+    return g.rows == 0 && g.cols == 0;
+}
+
+static inline bool fixed_dim_set_(const GridSpec& g) noexcept {
+    return g.rows > 0 && g.cols > 0;
+}
+
+static inline bool same_grid_(const GridSpec& a, const GridSpec& b) noexcept {
+    return a.rows == b.rows && a.cols == b.cols;
+}
+
+static inline int tile_count_(const GridSpec& g) noexcept {
+    if (g.rows <= 0 || g.cols <= 0) return 0;
+    constexpr int kMaxInt = std::numeric_limits<int>::max();
+    if (g.rows > kMaxInt / g.cols) return kMaxInt;
+    return g.rows * g.cols;
+}
+
+static inline int auto_binding_contexts_(const DetectorConfig& cfg) noexcept {
+    const int tiles = tile_count_(cfg.infer.tiles_dim);
+    if (tiles <= 1) return 1;
+    return std::max(1, std::min(cfg.runtime.tile_omp_threads, tiles));
+}
+
 } // namespace
 
 /// @brief Builds a minimal detector configuration for a given task and model path.
@@ -152,11 +178,24 @@ Status DetectorConfig::validate() const noexcept {
 
     if (infer.tiles_dim.rows <= 0 || infer.tiles_dim.cols <= 0)
         return Status::Invalid("DetectorConfig: tiles_dim must be > 0");
+    if (tile_count_(infer.tiles_dim) <= 0 || tile_count_(infer.tiles_dim) > 4096)
+        return Status::Invalid("DetectorConfig: tiles_dim product must be in [1,4096]");
     if (!(infer.tile_overlap >= 0.0f && infer.tile_overlap < 1.0f))
         return Status::Invalid("DetectorConfig: tile_overlap must be in [0,1)");
+    if (!(infer.nms_iou >= 0.0f && infer.nms_iou <= 1.0f))
+        return Status::Invalid("DetectorConfig: nms_iou must be in [0,1]");
+    if (infer.max_img_size <= 0) return Status::Invalid("DetectorConfig: max_img_size must be > 0");
 
     if (infer.min_roi_size_w < 0 || infer.min_roi_size_h < 0)
         return Status::Invalid("DetectorConfig: min_roi_size must be >= 0");
+    if (!(fixed_dim_unset_(infer.fixed_input_dim) || fixed_dim_set_(infer.fixed_input_dim)))
+        return Status::Invalid("DetectorConfig: fixed_input_dim must be unset or positive HxW");
+    if (infer.bind_io && !fixed_dim_set_(infer.fixed_input_dim))
+        return Status::Invalid("DetectorConfig: bind_io requires fixed_input_dim");
+
+    if (runtime.ort_intra_threads <= 0 || runtime.ort_inter_threads <= 0 || runtime.tile_omp_threads <= 0) {
+        return Status::Invalid("DetectorConfig: runtime thread counts must be > 0");
+    }
 
     // Engine-specific validation lives in the engine registry to keep this file
     // independent of any particular engine family. See engine_factory.cpp.
@@ -212,7 +251,7 @@ class DetectorImpl final {
         engine_ = std::move(r.value());
         if (!engine_) return Status::Internal("DetectorImpl: create_engine returned null");
 
-        return Status::Ok();
+        return ensure_config_binding_();
     }
 
     /**
@@ -231,6 +270,9 @@ class DetectorImpl final {
      * @return @ref idet::Status::Ok() on success, otherwise a non-OK status.
      */
     Status update_config(const DetectorConfig& cfg) noexcept {
+        const Status vs = cfg.validate();
+        if (!vs.ok()) return vs;
+
         if (cfg.task != cfg_.task) return Status::Invalid("update_config: task cannot change");
         if (cfg.engine != cfg_.engine) return Status::Invalid("update_config: engine cannot change");
         if (cfg.model_path != cfg_.model_path) return Status::Invalid("update_config: model_path cannot change");
@@ -246,11 +288,20 @@ class DetectorImpl final {
             return Status::Invalid("update_config: runtime cannot change (recreate detector)");
         }
 
+        if (!engine_) return Status::Invalid("update_config: engine not initialized");
+
+        const bool fixed_changed = !same_grid_(cfg.infer.fixed_input_dim, cfg_.infer.fixed_input_dim);
+
+        const Status us = engine_->update_hot(cfg);
+        if (!us.ok()) return us;
+
         cfg_.infer = cfg.infer;
         cfg_.verbose = cfg.verbose;
 
-        if (!engine_) return Status::Invalid("update_config: engine not initialized");
-        return engine_->update_hot(cfg_);
+        if (cfg_.infer.bind_io && fixed_changed) {
+            engine_->unset_binding();
+        }
+        return ensure_config_binding_();
     }
 
     /**
@@ -266,9 +317,7 @@ class DetectorImpl final {
         if (w <= 0 || h <= 0) return Status::Invalid("prepare_binding: non-positive w/h");
         if (contexts <= 0) contexts = 1;
 
-        const Status s = engine_->setup_binding(w, h, contexts);
-        if (s.ok()) binding_ready_ = true;
-        return s;
+        return engine_->setup_binding(w, h, contexts);
     }
 
     /// @brief Public entry point for unbound (or internally managed) inference.
@@ -314,15 +363,15 @@ class DetectorImpl final {
         if (!bm_res.ok()) return Result<VecQuad>::Err(bm_res.status());
         const internal::BgrImageView& bgr = bm_res.value().view();
 
-        const bool want_bound = force_bound || (cfg_.infer.bind_io && binding_ready_);
+        const bool want_bound = force_bound || cfg_.infer.bind_io;
 
-        if (want_bound && !binding_ready_) {
+        if (want_bound && !binding_ready()) {
             return Result<VecQuad>::Err(Status::Invalid(explicit_bound_call
                                                             ? "detect_bound: binding not prepared"
                                                             : "detect: bind_io enabled but binding not prepared"));
         }
 
-        const bool tiled = (cfg_.infer.tiles_dim.rows * cfg_.infer.tiles_dim.cols) > 1;
+        const bool tiled = tile_count_(cfg_.infer.tiles_dim) > 1;
 
         Result<std::vector<algo::Detection>> r =
             tiled ? run_tiled_(bgr, want_bound, ctx, explicit_bound_call) : run_single_(bgr, want_bound, ctx);
@@ -370,15 +419,32 @@ class DetectorImpl final {
                                  cfg_.infer.tile_overlap, cfg_.runtime.tile_omp_threads);
     }
 
+    bool binding_ready() const noexcept {
+        return engine_ != nullptr && engine_->binding_ready();
+    }
+
+    Status ensure_config_binding_() noexcept {
+        if (!cfg_.infer.bind_io) return Status::Ok();
+
+        const GridSpec& fixed = cfg_.infer.fixed_input_dim;
+        if (!fixed_dim_set_(fixed)) {
+            return Status::Invalid("DetectorImpl: bind_io requires fixed_input_dim");
+        }
+
+        const int desired_contexts = auto_binding_contexts_(cfg_);
+        if (binding_ready() && engine_->bound_w() == fixed.cols && engine_->bound_h() == fixed.rows &&
+            engine_->bound_contexts() >= desired_contexts) {
+            return Status::Ok();
+        }
+        return prepare_binding(fixed.cols, fixed.rows, desired_contexts);
+    }
+
   private:
     /** @brief Snapshot of configuration used by this detector instance. */
     DetectorConfig cfg_;
 
     /** @brief Owned engine backend implementation (DBNet, SCRFD, ...). */
     std::unique_ptr<idet::engine::IEngine> engine_;
-
-    /** @brief Whether bound I/O has been prepared successfully. */
-    bool binding_ready_ = false;
 };
 
 /**
@@ -437,6 +503,24 @@ struct DetectorWorkerImpl final {
     Status submit(const Image& image) noexcept {
         if (!image) return Status::Invalid("DetectorWorker::submit: invalid image");
 
+        auto can_accept_locked = [&]() noexcept -> Status {
+            if (stop) return Status::Invalid("DetectorWorker::submit: worker is stopping");
+            const DetectorWorkerState st = worker_state.load(std::memory_order_acquire);
+            if (st == DetectorWorkerState::Running) {
+                return Status::Invalid("DetectorWorker::submit: worker is already running");
+            }
+            if (st == DetectorWorkerState::Ready || completed.has_value()) {
+                return Status::Invalid("DetectorWorker::submit: previous result not consumed");
+            }
+            return Status::Ok();
+        };
+
+        {
+            std::lock_guard<std::mutex> lock(mu);
+            const Status st = can_accept_locked();
+            if (!st.ok()) return st;
+        }
+
         Image owned_or_view;
         if (options.copy_input) {
             const ImageView& v = image.view();
@@ -449,14 +533,8 @@ struct DetectorWorkerImpl final {
 
         {
             std::lock_guard<std::mutex> lock(mu);
-            if (stop) return Status::Invalid("DetectorWorker::submit: worker is stopping");
-            const DetectorWorkerState st = worker_state.load(std::memory_order_acquire);
-            if (st == DetectorWorkerState::Running) {
-                return Status::Invalid("DetectorWorker::submit: worker is already running");
-            }
-            if (st == DetectorWorkerState::Ready || completed.has_value()) {
-                return Status::Invalid("DetectorWorker::submit: previous result not consumed");
-            }
+            const Status st = can_accept_locked();
+            if (!st.ok()) return st;
 
             job = std::move(owned_or_view);
             has_job = true;

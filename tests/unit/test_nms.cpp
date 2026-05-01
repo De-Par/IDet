@@ -231,16 +231,13 @@ TEST(NMS, DegenerateZeroAreaBoxes_DoNotCrash_StillSorted) {
 }
 
 TEST(NMS, NaNScore_HandledDeterministically_NoCrash) {
-    // If your NMS sorts by score, NaNs can break strict weak ordering
-    // This test is mainly to catch crashes/UB; behavior may be defined by comparator
     std::vector<idet::algo::Detection> dets;
+    dets.push_back(rect(100, 100, 110, 110, std::numeric_limits<float>::quiet_NaN()));
     dets.push_back(rect(0, 0, 10, 10, 0.9f));
-    dets.push_back(rect(0, 0, 10, 10, std::numeric_limits<float>::quiet_NaN()));
     dets.push_back(rect(100, 100, 110, 110, 0.7f));
 
     auto out = idet::algo::nms_poly(dets, 0.3f);
-    // Just ensure it returns something and doesn't crash
-    EXPECT_FALSE(out.empty());
-    // If NaNs are present, you may want a policy: treat as -inf or 0
-    // If you implement that, tighten this test accordingly
+    ASSERT_EQ(out.size(), 2u);
+    EXPECT_FLOAT_EQ(out[0].score, 0.9f);
+    EXPECT_FLOAT_EQ(out[1].score, 0.7f);
 }

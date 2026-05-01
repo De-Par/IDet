@@ -38,19 +38,6 @@ int main(int argc, char** argv) {
         }
         idet::Detector detector = std::move(det_res.value());
 
-        // Bind io
-        if (det_config.infer.bind_io) {
-            const int fixed_w = det_config.infer.fixed_input_dim.cols;
-            const int fixed_h = det_config.infer.fixed_input_dim.rows;
-            const int tile_threads = det_config.runtime.tile_omp_threads;
-
-            auto bind_res = detector.prepare_binding(fixed_w, fixed_h, tile_threads);
-            if (!bind_res.ok()) {
-                std::cerr << "[ERROR] Failed to bind input/output buffers: " << bind_res.message << "\n";
-                return 1;
-            }
-        }
-
         // Load image
         timer.tic();
         auto img_res = idet::load_image(app_config.image_path, idet::PixelFormat::BGR_U8);

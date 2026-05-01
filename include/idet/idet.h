@@ -167,7 +167,10 @@ struct InferenceOptions {
      * @brief Whether to pre-bind I/O (and potentially allocate buffers) ahead of time.
      *
      * Binding may improve performance by avoiding repeated allocations and shape negotiation.
-     * Binding is typically configured via @ref idet::Detector::prepare_binding.
+     * When this flag is enabled, @ref fixed_input_dim must be a positive HxW pair and
+     * @ref idet::Detector::create prepares the binding automatically. Advanced callers can
+     * still use @ref idet::Detector::prepare_binding and @ref idet::Detector::detect_bound
+     * explicitly without setting this flag.
      */
     bool bind_io = false;
 
@@ -209,8 +212,8 @@ struct InferenceOptions {
     /**
      * @brief Fixed input grid dimension override (rows x cols).
      *
-     * When non-zero, engines may use a fixed input dimension policy rather than dynamic sizing.
-     * Interpretation is implementation-defined and should be validated via @ref DetectorConfig::validate.
+     * When non-zero, engines use this fixed HxW policy for bound I/O setup. The value is
+     * interpreted as rows x cols, i.e. height x width.
      *
      * Default is `{0, 0}` to indicate "not set / use engine default".
      */
@@ -220,6 +223,8 @@ struct InferenceOptions {
      * @brief Tiling grid dimension (rows x cols).
      *
      * When tiling is enabled, the image may be split into `rows * cols` tiles and processed separately.
+     * The product is bounded by @ref DetectorConfig::validate to prevent accidental runaway
+     * task counts in embedded pipelines.
      */
     GridSpec tiles_dim{1, 1};
 

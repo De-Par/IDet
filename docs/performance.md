@@ -72,7 +72,7 @@ Effective application and detector configuration:
 
 - **IOBinding**:
   - Enable `--bind_io 1`.
-  - Combine with `--fixed_hw HxW` (multiple of 32) to avoid per-frame re-binding.
+  - Always combine it with `--fixed_hw HxW`; the core treats binding as a fixed-shape contract.
 
 
 ## IOBinding Deep-Dive
@@ -85,7 +85,8 @@ Best practice:
 
 - Set `--bind_io 1`.
 - Use fixed shapes with `--fixed_hw HxW`.
-- With tiling, each OpenMP worker gets its own binding context (no locks).
+- With tiling, the detector prepares enough binding contexts for the configured tile workers
+  (no shared bound buffers in the hot loop).
 - With `DetectorWorker`, a single-flight lane usually needs one bound context.
 
 

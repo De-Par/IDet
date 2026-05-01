@@ -153,7 +153,16 @@ it. `GridSpec` uses rows x cols, so `fixed_input_dim = {640, 640}` means H=640, 
 ```cpp
 config.infer.bind_io = true;
 config.infer.fixed_input_dim = {640, 640};
+```
 
+With `bind_io = true`, `Detector::create()` prepares fixed-shape bindings automatically.
+The number of binding contexts is derived from `RuntimePolicy::tile_omp_threads` for tiled
+runs and collapses to one context for single-image runs.
+
+Use explicit `DetectorWorkerOptions` when you want a single-flight background lane with its own
+bound context:
+
+```cpp
 idet::DetectorWorkerOptions options{};
 options.use_bound = true;
 options.binding_height = 640;

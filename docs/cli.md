@@ -36,13 +36,13 @@ These flags belong to the **demo CLI application** (`idet_app`) that links again
 | `--max_img_size` | N | `960` | All | Max side length for non-tiling inference |
 | `--min_roi_size_w` | N | `5` | All | Minimal ROI width; `0` disables width filtering |
 | `--min_roi_size_h` | N | `5` | All | Minimal ROI height; `0` disables height filtering |
-| `--tiles_rc` | RxC | `off` | All | Enable tiling grid (e.g. `2x2`, `3x4`). Disable: `off`\|`no`\|`0` |
+| `--tiles_rc` | RxC | `off` | All | Enable tiling grid (e.g. `2x2`, `3x4`). Product is capped at 4096; disable: `off`\|`no`\|`0` |
 | `--tile_overlap` | F | `0.1` | All | Tile overlap fraction; valid range `[0, 1)` |
 | `--nms_iou` | F | `0.3` | All | NMS IoU threshold; valid range `[0, 1]` |
 | `--use_fast_iou` | 0\|1 | task default | All | Fast AABB IoU option for NMS / overlap checks |
 | `--sigmoid` | 0\|1 | `0` | All | Apply sigmoid on output map (useful if model outputs logits) |
-| `--bind_io` | 0\|1 | `0` | All | Use ORT I/O binding (buffer reuse) |
-| `--fixed_hw` | HxW | `off` | All | Fixed input size (e.g. `480x480`). Disable: `off`\|`no`\|`0` |
+| `--bind_io` | 0\|1 | `0` | All | Use ORT I/O binding (buffer reuse). Requires `--fixed_hw` |
+| `--fixed_hw` | HxW | `off` | All | Fixed input size (e.g. `480x480`). Required with `--bind_io 1`; disable: `off`\|`no`\|`0` |
 
 > 💡 **Note:** `DetectorConfig::setup()` sets task defaults. In particular, face and cloth use fast AABB IoU by default; text uses polygon IoU by default.
 

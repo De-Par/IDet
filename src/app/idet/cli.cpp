@@ -194,7 +194,7 @@ static void print_usage(std::ostream& os, const char* app) {
        << "  --nms_iou            F       NMS IoU threshold. Default: 0.3\n"
        << "  --use_fast_iou      0|1      Fast IoU option for NMS / overlap checks. Default: 0\n"
        << "  --sigmoid           0|1      Apply sigmoid on output map. Default: 0\n"
-       << "  --bind_io           0|1      Use ORT I/O binding. Default: 0\n"
+       << "  --bind_io           0|1      Use ORT I/O binding; requires --fixed_hw. Default: 0\n"
        << "  --fixed_hw          HxW      Fixed input size, e.g. 480x480. Disable: off|no|0\n\n"
        << "Runtime:\n"
        << "  --threads_intra      N       ORT intra-op threads (inside operators). Default: 1\n"

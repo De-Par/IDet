@@ -64,7 +64,7 @@ To fix the underlying mismatch:
 
 **Q:** Does the tool support dynamic sizes?
 
-**A:** Yes. Dynamic path uses `--max_img_size`. For best latency and zero re-binding, prefer `--fixed_hw HxW` with `--bind_io 1`.
+**A:** Yes. Dynamic path uses `--max_img_size`. For best latency and zero re-binding, use `--bind_io 1` together with `--fixed_hw HxW`; binding is a fixed-shape contract.
 
 ---
 

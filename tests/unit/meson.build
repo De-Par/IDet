@@ -8,6 +8,7 @@ unit_tests_sources = files(
     'test_bgr_image.cpp',
     'test_yolo_decode.cpp',
     'test_detector_worker.cpp',
+    'test_config.cpp',
 )
 
 idet_unit_tests_exe = executable(

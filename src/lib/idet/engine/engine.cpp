@@ -172,6 +172,9 @@ Status IEngine::check_hot_update_(const DetectorConfig& next) const noexcept {
         return Status::Invalid("update_hot: runtime cannot change (recreate detector)");
     }
 
+    const Status vs = next.validate();
+    if (!vs.ok()) return vs;
+
     return Status::Ok();
 }
 

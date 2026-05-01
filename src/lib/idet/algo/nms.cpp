@@ -21,6 +21,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <limits>
 #include <numeric>
 #include <utility>
@@ -63,6 +64,32 @@ static inline bool aabb_overlap(const algo::AABB& a, const algo::AABB& b) noexce
     return !(a.maxx < b.minx || b.maxx < a.minx || a.maxy < b.miny || b.maxy < a.miny);
 }
 
+static inline bool finite_score_bits_(float v) noexcept {
+    static_assert(sizeof(float) == sizeof(std::uint32_t), "IDet expects IEEE-754 float32 scores");
+    std::uint32_t bits = 0;
+    std::memcpy(&bits, &v, sizeof(bits));
+    return (bits & 0x7F80'0000U) != 0x7F80'0000U;
+}
+
+/**
+ * @brief Strict deterministic score order used by NMS.
+ *
+ * @details
+ * Finite scores are sorted before non-finite scores, higher scores first. Equal or non-finite
+ * scores are tie-broken by original input index so @c std::sort always sees a strict weak
+ * ordering. This prevents NaN scores from destabilizing NMS ordering.
+ */
+static inline bool score_before_(const std::vector<algo::Detection>& dets, std::size_t a, std::size_t b) noexcept {
+    const float sa = dets[a].score;
+    const float sb = dets[b].score;
+    const bool fa = finite_score_bits_(sa);
+    const bool fb = finite_score_bits_(sb);
+
+    if (fa != fb) return fa;
+    if (fa && sa != sb) return sa > sb;
+    return a < b;
+}
+
 /**
  * @brief Performs Non-Maximum Suppression (NMS) on quadrilateral detections using polygon IoU or AABB IoU.
  *
@@ -98,8 +125,7 @@ std::vector<algo::Detection> nms_poly(const std::vector<algo::Detection>& dets, 
     if (iou_thr <= 0.0f) {
         std::vector<std::size_t> order(N);
         std::iota(order.begin(), order.end(), std::size_t{0});
-        std::sort(order.begin(), order.end(),
-                  [&](std::size_t a, std::size_t b) { return dets[a].score > dets[b].score; });
+        std::sort(order.begin(), order.end(), [&](std::size_t a, std::size_t b) { return score_before_(dets, a, b); });
 
         std::vector<Detection> out;
         out.reserve(N);
@@ -112,14 +138,14 @@ std::vector<algo::Detection> nms_poly(const std::vector<algo::Detection>& dets, 
     if (iou_thr >= 1.0f) {
         std::size_t best = 0;
         for (std::size_t i = 1; i < N; ++i)
-            if (dets[i].score > dets[best].score) best = i;
+            if (score_before_(dets, i, best)) best = i;
         return {dets[best]};
     }
 
     // Sort detections by descending score; order[] is the processing permutation.
     std::vector<std::size_t> order(N);
     std::iota(order.begin(), order.end(), std::size_t{0});
-    std::sort(order.begin(), order.end(), [&](std::size_t a, std::size_t b) { return dets[a].score > dets[b].score; });
+    std::sort(order.begin(), order.end(), [&](std::size_t a, std::size_t b) { return score_before_(dets, a, b); });
 
     // rank[idx] gives the position in the sorted order, used to enforce "only suppress lower-ranked".
     std::vector<std::size_t> rank(N, 0);
