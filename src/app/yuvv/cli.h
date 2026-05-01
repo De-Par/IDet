@@ -1,8 +1,7 @@
 #pragma once
 
-#include <yuvv.h>
-
 #include <iosfwd>
+#include <yuvv.h>
 
 /**
  * @file cli.h

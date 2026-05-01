@@ -23,8 +23,8 @@
 
 #include <cmath>
 
-using idet::internal::LetterboxInfo;
 using idet::internal::letterbox_bgr;
+using idet::internal::LetterboxInfo;
 
 namespace {
 
@@ -35,8 +35,7 @@ static cv::Mat make_test_bgr(int w, int h, std::uint8_t base) {
         auto* row = m.ptr<cv::Vec3b>(y);
         for (int x = 0; x < w; ++x) {
             row[x] = cv::Vec3b(static_cast<std::uint8_t>(base + (x & 0xFF)),
-                               static_cast<std::uint8_t>(base + (y & 0xFF)),
-                               static_cast<std::uint8_t>((x ^ y) & 0xFF));
+                               static_cast<std::uint8_t>(base + (y & 0xFF)), static_cast<std::uint8_t>((x ^ y) & 0xFF));
         }
     }
     return m;

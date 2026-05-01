@@ -204,8 +204,7 @@ idet::internal::LetterboxInfo SCRFD::fill_input_chw_(float* dst, int in_w, int i
  * @return Vector of Ort::Value outputs in the same order as @ref out_names_.
  */
 Result<std::vector<Ort::Value>> SCRFD::run_unbound_(const cv::Mat& bgr, int force_w, int force_h,
-                                                    idet::internal::LetterboxInfo& lb, int& in_w,
-                                                    int& in_h) noexcept {
+                                                    idet::internal::LetterboxInfo& lb, int& in_w, int& in_h) noexcept {
     try {
         if (bgr.empty() || bgr.type() != CV_8UC3) {
             return Result<std::vector<Ort::Value>>::Err(Status::Invalid("SCRFD: run_unbound expects CV_8UC3 BGR"));

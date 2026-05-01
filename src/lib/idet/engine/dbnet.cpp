@@ -36,6 +36,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstddef>
 #include <exception>
 #include <new>
 #include <utility>
@@ -316,7 +317,7 @@ idet::Quad DBNet::unclip_rect_like_(const idet::Quad& box, float unclip) noexcep
     rr.points(cv_pts);
 
     std::array<cv::Point2f, 4> out_cv{};
-    for (int i = 0; i < 4; ++i)
+    for (std::size_t i = 0; i < out_cv.size(); ++i)
         out_cv[i] = cv_pts[i];
     idet::Quad out = internal::opencv_adapter::from_cv_quad(out_cv);
     algo::order_quad(out.data());
@@ -366,7 +367,7 @@ std::vector<algo::Detection> DBNet::postprocess_hw_(const float* prob_hw, int ou
     if (apply_sigmoid_) {
         prob2.create(out_h, out_w, CV_32F);
 #if defined(_OPENMP)
-#pragma omp parallel for schedule(static) if (parallel)
+    #pragma omp parallel for schedule(static) if (parallel)
 #endif
         for (int y = 0; y < out_h; ++y) {
             const float* src = prob.ptr<float>(y);
@@ -381,7 +382,7 @@ std::vector<algo::Detection> DBNet::postprocess_hw_(const float* prob_hw, int ou
     } else {
         prob2 = prob;
 #if defined(_OPENMP)
-#pragma omp parallel for schedule(static) if (parallel)
+    #pragma omp parallel for schedule(static) if (parallel)
 #endif
         for (int y = 0; y < out_h; ++y) {
             const float* pr = prob2.ptr<float>(y);

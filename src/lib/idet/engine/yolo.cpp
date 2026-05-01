@@ -173,9 +173,8 @@ Status YOLO::probe_layout_(int in_h, int in_w) noexcept {
     try {
         if (in_w <= 0 || in_h <= 0) return Status::Invalid("YOLO::probe_layout: non-positive shape");
 
-        std::vector<float> chw(static_cast<std::size_t>(3) * static_cast<std::size_t>(in_h) *
-                                   static_cast<std::size_t>(in_w),
-                               0.0f);
+        std::vector<float> chw(
+            static_cast<std::size_t>(3) * static_cast<std::size_t>(in_h) * static_cast<std::size_t>(in_w), 0.0f);
 
         Ort::MemoryInfo cpu_mem = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
         const std::vector<int64_t> ishape = {1, 3, in_h, in_w};
@@ -269,7 +268,8 @@ Status YOLO::probe_layout_(int in_h, int in_w) noexcept {
             }
         }
 
-        return Status::Unsupported("YOLO: cannot infer output convention (expected [B,K,6] or [B,4+nc,N] / [B,N,4+nc])");
+        return Status::Unsupported(
+            "YOLO: cannot infer output convention (expected [B,K,6] or [B,4+nc,N] / [B,N,4+nc])");
     } catch (const std::bad_alloc&) {
         return Status::OutOfMemory("YOLO::probe_layout: bad_alloc");
     } catch (const std::exception& e) {
@@ -296,7 +296,8 @@ std::vector<algo::Detection> YOLO::decode_in_graph_nms_(const std::vector<Ort::V
 
     std::int64_t k_valid = kmax;
     if (num_detections_idx_ >= 0 && static_cast<std::size_t>(num_detections_idx_) < outs.size()) {
-        k_valid = std::min(kmax, std::max<std::int64_t>(0, read_scalar_count_(outs[static_cast<std::size_t>(num_detections_idx_)], kmax)));
+        k_valid = std::min(kmax, std::max<std::int64_t>(
+                                     0, read_scalar_count_(outs[static_cast<std::size_t>(num_detections_idx_)], kmax)));
     }
 
     const float* data = det_v.GetTensorData<float>();
@@ -365,13 +366,13 @@ std::vector<algo::Detection> YOLO::decode_raw_buffer(const float* data, std::int
     // bit-identical to the previous code path for anchors that pass; we just skip exp() calls
     // for anchors that would have been rejected anyway.
     const bool fast_logit = apply_sigmoid && !has_objectness && score_thr > 0.0f && score_thr < 1.0f;
-    const float logit_thr = fast_logit ? std::log(score_thr / (1.0f - score_thr))
-                                       : -std::numeric_limits<float>::infinity();
+    const float logit_thr =
+        fast_logit ? std::log(score_thr / (1.0f - score_thr)) : -std::numeric_limits<float>::infinity();
 
     // Heuristic reserve: we typically keep < ~1% of anchors. Use a small fraction of N with
     // a sane floor/ceiling so we avoid both grow-on-every-push and over-allocation for tiny N.
-    const std::size_t reserve_n = std::min<std::size_t>(
-        std::max<std::size_t>(static_cast<std::size_t>(N / 64), 32), 1024);
+    const std::size_t reserve_n =
+        std::min<std::size_t>(std::max<std::size_t>(static_cast<std::size_t>(N / 64), 32), 1024);
     dets.reserve(reserve_n);
 
     for (std::int64_t i = 0; i < N; ++i) {
@@ -441,8 +442,8 @@ std::vector<algo::Detection> YOLO::decode_raw_(const std::vector<Ort::Value>& ou
                              orig_h, min_w_, min_h_);
 }
 
-std::vector<algo::Detection> YOLO::decode_(const std::vector<Ort::Value>& outs,
-                                           const idet::internal::LetterboxInfo& lb, int orig_w, int orig_h) const {
+std::vector<algo::Detection> YOLO::decode_(const std::vector<Ort::Value>& outs, const idet::internal::LetterboxInfo& lb,
+                                           int orig_w, int orig_h) const {
     if (mode_ == Mode::InGraphNms) return decode_in_graph_nms_(outs, lb, orig_w, orig_h);
     if (mode_ == Mode::Raw) return decode_raw_(outs, lb, orig_w, orig_h);
     return {};
@@ -464,9 +465,8 @@ Result<std::vector<algo::Detection>> YOLO::infer_unbound(const internal::BgrImag
             if (!ps.ok()) return Result<std::vector<algo::Detection>>::Err(ps);
         }
 
-        std::vector<float> chw(static_cast<std::size_t>(3) * static_cast<std::size_t>(in_h) *
-                                   static_cast<std::size_t>(in_w),
-                               0.0f);
+        std::vector<float> chw(
+            static_cast<std::size_t>(3) * static_cast<std::size_t>(in_h) * static_cast<std::size_t>(in_w), 0.0f);
         const auto lb = fill_input_chw_(chw.data(), in_w, in_h, bgr);
 
         Ort::MemoryInfo cpu_mem = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
@@ -520,9 +520,8 @@ Status YOLO::setup_binding(int w, int h, int contexts) noexcept {
         // Re-run a single inference with a real Ort::Value to read each output's shape and
         // element type. We need both to allocate output buffers correctly. (For dynamic-shape
         // outputs, the shape comes from the actual run — we record what the model produced.)
-        std::vector<float> probe_in(static_cast<std::size_t>(3) * static_cast<std::size_t>(in_h) *
-                                        static_cast<std::size_t>(in_w),
-                                    0.0f);
+        std::vector<float> probe_in(
+            static_cast<std::size_t>(3) * static_cast<std::size_t>(in_h) * static_cast<std::size_t>(in_w), 0.0f);
         Ort::Value in_probe = Ort::Value::CreateTensor<float>(cpu_mem, probe_in.data(), probe_in.size(),
                                                               bound_in_shape_.data(), bound_in_shape_.size());
 
@@ -565,9 +564,8 @@ Status YOLO::setup_binding(int w, int h, int contexts) noexcept {
                         numel *= static_cast<std::size_t>(std::max<std::int64_t>(1, v));
 
                     c.outs[oi].assign(numel, 0.0f);
-                    c.out_tensors.emplace_back(Ort::Value::CreateTensor<float>(cpu_mem, c.outs[oi].data(),
-                                                                               c.outs[oi].size(), sh.data(),
-                                                                               sh.size()));
+                    c.out_tensors.emplace_back(Ort::Value::CreateTensor<float>(
+                        cpu_mem, c.outs[oi].data(), c.outs[oi].size(), sh.data(), sh.size()));
                     c.binding->BindOutput(out_names_[oi].c_str(), c.out_tensors.back());
                 } else {
                     // Let ORT allocate the non-float output (e.g. int64 num_dets).
@@ -604,7 +602,8 @@ Result<std::vector<algo::Detection>> YOLO::infer_bound(const internal::BgrImageV
         if (!binding_ready_)
             return Result<std::vector<algo::Detection>>::Err(Status::Invalid("YOLO::infer_bound: binding not ready"));
         if (ctx_idx < 0 || ctx_idx >= contexts_)
-            return Result<std::vector<algo::Detection>>::Err(Status::Invalid("YOLO::infer_bound: ctx_idx out of range"));
+            return Result<std::vector<algo::Detection>>::Err(
+                Status::Invalid("YOLO::infer_bound: ctx_idx out of range"));
         if (bgr.empty() || bgr.type() != CV_8UC3)
             return Result<std::vector<algo::Detection>>::Err(
                 Status::Invalid("YOLO::infer_bound: expected valid BGR view"));
@@ -626,7 +625,8 @@ Result<std::vector<algo::Detection>> YOLO::infer_bound(const internal::BgrImageV
     } catch (const std::bad_alloc&) {
         return Result<std::vector<algo::Detection>>::Err(Status::OutOfMemory("YOLO::infer_bound: bad_alloc"));
     } catch (const std::exception& e) {
-        return Result<std::vector<algo::Detection>>::Err(Status::Internal(std::string("YOLO::infer_bound: ") + e.what()));
+        return Result<std::vector<algo::Detection>>::Err(
+            Status::Internal(std::string("YOLO::infer_bound: ") + e.what()));
     } catch (...) {
         return Result<std::vector<algo::Detection>>::Err(Status::Internal("YOLO::infer_bound: unknown"));
     }

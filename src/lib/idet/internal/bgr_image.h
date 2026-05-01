@@ -149,13 +149,18 @@ class BgrImage final {
                 return idet::Result<BgrImage>::Err(idet::Status::Invalid("BgrImage::from: source span too large"));
             }
 
+            const auto src_stride = static_cast<std::ptrdiff_t>(v.stride_bytes);
+            const auto src_channels = static_cast<std::ptrdiff_t>(ch);
+
             out.owned_.resize(total_bytes);
             for (int y = 0; y < v.height; ++y) {
-                const std::uint8_t* src = v.data + static_cast<std::ptrdiff_t>(y) * v.stride_bytes;
+                const std::uint8_t* src = v.data + static_cast<std::ptrdiff_t>(y) * src_stride;
                 std::uint8_t* dst = out.owned_.data() + static_cast<std::size_t>(y) * row_bytes;
                 for (int x = 0; x < v.width; ++x) {
-                    const std::uint8_t* p = src + static_cast<std::ptrdiff_t>(x) * ch;
-                    std::uint8_t* q = dst + static_cast<std::ptrdiff_t>(x) * 3;
+                    const auto src_offset = static_cast<std::ptrdiff_t>(x) * src_channels;
+                    const auto dst_offset = static_cast<std::ptrdiff_t>(x) * std::ptrdiff_t{3};
+                    const std::uint8_t* p = src + src_offset;
+                    std::uint8_t* q = dst + dst_offset;
                     switch (v.format) {
                     case idet::PixelFormat::RGB_U8:
                     case idet::PixelFormat::RGBA_U8:

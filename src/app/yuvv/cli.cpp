@@ -44,20 +44,19 @@ static bool parse_format_str(const std::string& s, yuvv::YuvFormat& out) {
 
 void print_usage(std::ostream& os, const char* argv0) {
     os << "Usage:\n"
-              << "  " << argv0
-              << " --file <path.yuv> --w <width> --h <height> --fmt <i420|nv12|nv21|yuy2|uyvy> [options]\n\n"
-              << "Options:\n"
-              << "  --fps <num>        Playback FPS (default 30)\n"
-              << "  --loop             Loop playback\n"
-              << "  --start <N>        Start from frame N (default 0)\n"
-              << "  --count <N>        Show only N frames (default all)\n"
-              << "  --no-overlay       Disable overlay text\n\n"
-              << "Controls:\n"
-              << "  SPACE  pause/resume\n"
-              << "  n      next frame (when paused)\n"
-              << "  r      restart\n"
-              << "  s      save current frame (PNG)\n"
-              << "  q/ESC  quit\n";
+       << "  " << argv0 << " --file <path.yuv> --w <width> --h <height> --fmt <i420|nv12|nv21|yuy2|uyvy> [options]\n\n"
+       << "Options:\n"
+       << "  --fps <num>        Playback FPS (default 30)\n"
+       << "  --loop             Loop playback\n"
+       << "  --start <N>        Start from frame N (default 0)\n"
+       << "  --count <N>        Show only N frames (default all)\n"
+       << "  --no-overlay       Disable overlay text\n\n"
+       << "Controls:\n"
+       << "  SPACE  pause/resume\n"
+       << "  n      next frame (when paused)\n"
+       << "  r      restart\n"
+       << "  s      save current frame (PNG)\n"
+       << "  q/ESC  quit\n";
 }
 
 bool parse_args(int argc, char** argv, yuvv::ViewerConfig& cfg, bool& help_requested) {

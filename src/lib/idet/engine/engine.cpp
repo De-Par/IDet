@@ -84,8 +84,7 @@ const OrtApi* probe_and_init_ort_api_() noexcept {
                 if (v != static_cast<std::uint32_t>(ORT_API_VERSION)) {
                     const char* libver = base->GetVersionString ? base->GetVersionString() : "unknown";
                     std::cerr << "[idet] note: compiled against ORT API v" << ORT_API_VERSION
-                              << " but runtime (libonnxruntime " << libver
-                              << ") only supports up to v" << v
+                              << " but runtime (libonnxruntime " << libver << ") only supports up to v" << v
                               << "; using v" << v << ". Rebuild against the matching headers"
                               << " for full feature parity.\n";
                 }
@@ -96,9 +95,8 @@ const OrtApi* probe_and_init_ort_api_() noexcept {
 
         if (api == nullptr) {
             const char* libver = base->GetVersionString ? base->GetVersionString() : "unknown";
-            std::cerr << "[idet] FATAL: loaded libonnxruntime " << libver
-                      << " supports no ORT C API version in [" << kMinSupportedOrtApiVersion
-                      << ", " << ORT_API_VERSION << "]; cannot initialize ORT.\n";
+            std::cerr << "[idet] FATAL: loaded libonnxruntime " << libver << " supports no ORT C API version in ["
+                      << kMinSupportedOrtApiVersion << ", " << ORT_API_VERSION << "]; cannot initialize ORT.\n";
         }
     });
 

@@ -6,7 +6,31 @@
     #error "[ERROR] 'gtest.h' header not found"
 #endif
 
+#include <cstdio>
+#include <cstdlib>
+
+#if defined(__has_feature)
+    #if __has_feature(address_sanitizer)
+        #define IDET_TEST_ADDRESS_SANITIZER 1
+    #endif
+#endif
+
+#if defined(__SANITIZE_ADDRESS__)
+    #define IDET_TEST_ADDRESS_SANITIZER 1
+#endif
+
 int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    const int result = RUN_ALL_TESTS();
+
+#if defined(__APPLE__) && defined(IDET_TEST_ADDRESS_SANITIZER)
+    // Homebrew OpenCV currently pulls TBB into the test process. On macOS ASAN builds
+    // can crash during TBB's process-exit destructor after all tests have passed. Exit
+    // directly in this narrow configuration so sanitizer runs still report real test-time
+    // findings without being dominated by an external shutdown-order issue.
+    std::fflush(nullptr);
+    std::_Exit(result);
+#else
+    return result;
+#endif
 }

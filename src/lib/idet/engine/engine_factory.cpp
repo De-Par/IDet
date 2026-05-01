@@ -97,8 +97,7 @@ static Status validate_yolo_(const DetectorConfig& cfg) noexcept {
     return Status::Ok();
 }
 
-template <typename T>
-static Result<std::unique_ptr<IEngine>> make_(const DetectorConfig& cfg) {
+template <typename T> static Result<std::unique_ptr<IEngine>> make_(const DetectorConfig& cfg) {
     std::unique_ptr<IEngine> p = std::make_unique<T>(cfg);
     return Result<std::unique_ptr<IEngine>>::Ok(std::move(p));
 }
@@ -123,8 +122,8 @@ const std::array<EngineDescriptor, 3>& engine_registry() noexcept {
 /** @brief Lookup an engine descriptor by kind. */
 static const EngineDescriptor* find_descriptor_(EngineKind kind) noexcept {
     const auto& table = engine_registry();
-    auto it = std::find_if(table.begin(), table.end(),
-                           [&](const EngineDescriptor& d) noexcept { return d.kind == kind; });
+    auto it =
+        std::find_if(table.begin(), table.end(), [&](const EngineDescriptor& d) noexcept { return d.kind == kind; });
     return (it == table.end()) ? nullptr : &(*it);
 }
 
@@ -139,8 +138,8 @@ Status engine_validate_specific(const DetectorConfig& cfg) noexcept {
 
 EngineKind engine_default_for_task(Task task) noexcept {
     const auto& table = engine_registry();
-    auto it = std::find_if(table.begin(), table.end(),
-                           [&](const EngineDescriptor& d) noexcept { return d.task == task; });
+    auto it =
+        std::find_if(table.begin(), table.end(), [&](const EngineDescriptor& d) noexcept { return d.task == task; });
     return (it == table.end()) ? EngineKind::None : it->kind;
 }
 

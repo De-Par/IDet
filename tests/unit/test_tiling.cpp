@@ -135,8 +135,8 @@ class DummyEngine final : public idet::engine::IEngine {
         calls_bound.store(0, std::memory_order_relaxed);
     }
 
-    idet::Result<std::vector<idet::algo::Detection>> infer_unbound(
-        const idet::internal::BgrImageView& bgr) noexcept override {
+    idet::Result<std::vector<idet::algo::Detection>>
+    infer_unbound(const idet::internal::BgrImageView& bgr) noexcept override {
         calls_unbound.fetch_add(1, std::memory_order_relaxed);
         return idet::Result<std::vector<idet::algo::Detection>>::Ok(make_one_det(bgr.width, bgr.height, 0.5f));
     }

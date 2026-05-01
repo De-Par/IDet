@@ -30,8 +30,9 @@
 
 #include <algorithm>
 #include <atomic>
-#include <condition_variable>
 #include <cmath>
+#include <condition_variable>
+#include <cstddef>
 #include <exception>
 #include <memory>
 #include <mutex>
@@ -63,7 +64,7 @@ static inline bool passes_min_size_(const algo::Detection& d, int min_w, int min
     if (min_w <= 0 && min_h <= 0) return true;
 
     float minx = d.pts[0].x, miny = d.pts[0].y, maxx = d.pts[0].x, maxy = d.pts[0].y;
-    for (int i = 1; i < 4; ++i) {
+    for (std::size_t i = 1; i < d.pts.size(); ++i) {
         minx = std::min(minx, d.pts[i].x);
         miny = std::min(miny, d.pts[i].y);
         maxx = std::max(maxx, d.pts[i].x);
@@ -92,7 +93,7 @@ static inline VecQuad to_public_quads_(const std::vector<algo::Detection>& dets)
     for (const auto& d : dets) {
         out.emplace_back();
         Quad& q = out.back();
-        for (int i = 0; i < 4; ++i) {
+        for (std::size_t i = 0; i < q.size(); ++i) {
             q[i].x = d.pts[i].x;
             q[i].y = d.pts[i].y;
         }
@@ -498,8 +499,8 @@ struct DetectorWorkerImpl final {
                 has_job = false;
             }
 
-            Result<VecQuad> r =
-                options.use_bound ? detector.detect_bound(current, options.binding_context_index) : detector.detect(current);
+            Result<VecQuad> r = options.use_bound ? detector.detect_bound(current, options.binding_context_index)
+                                                  : detector.detect(current);
 
             {
                 std::lock_guard<std::mutex> lock(mu);
@@ -731,7 +732,8 @@ Result<DetectorWorker> DetectorWorker::create(const DetectorConfig& config,
         return Result<DetectorWorker>::Err(Status::Invalid("DetectorWorker::create: binding_contexts must be > 0"));
     }
     if (options.binding_context_index < 0 || options.binding_context_index >= options.binding_contexts) {
-        return Result<DetectorWorker>::Err(Status::Invalid("DetectorWorker::create: binding_context_index out of range"));
+        return Result<DetectorWorker>::Err(
+            Status::Invalid("DetectorWorker::create: binding_context_index out of range"));
     }
     if (options.use_bound && (options.binding_width <= 0 || options.binding_height <= 0)) {
         return Result<DetectorWorker>::Err(

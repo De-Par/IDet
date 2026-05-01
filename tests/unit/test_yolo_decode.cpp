@@ -135,8 +135,8 @@ TEST(YoloDecode, AppliesLetterboxInverseToBoxes) {
     put_cl(buf, 0, feat, 3, 32.f);  // h
     put_cl(buf, 0, feat, 4, 0.95f); // class 0
 
-    auto dets = YOLO::decode_raw_buffer(buf.data(), N, nc, false, Layout::ChannelsLast, false, 0.5f, lb, 1000, 500, 0,
-                                        0);
+    auto dets =
+        YOLO::decode_raw_buffer(buf.data(), N, nc, false, Layout::ChannelsLast, false, 0.5f, lb, 1000, 500, 0, 0);
 
     ASSERT_EQ(dets.size(), 1u);
     // Center: (160/0.32, 80/0.32) = (500, 250) -> matches original-image center.
@@ -161,8 +161,8 @@ TEST(YoloDecode, ClampsBoxesToOriginalImageBounds) {
     put_cl(buf, 0, feat, 3, 200.f);
     put_cl(buf, 0, feat, 4, 0.99f);
 
-    auto dets = YOLO::decode_raw_buffer(buf.data(), N, nc, false, Layout::ChannelsLast, false, 0.5f, lb, 640, 640, 0,
-                                        0);
+    auto dets =
+        YOLO::decode_raw_buffer(buf.data(), N, nc, false, Layout::ChannelsLast, false, 0.5f, lb, 640, 640, 0, 0);
     ASSERT_EQ(dets.size(), 1u);
     EXPECT_GE(dets[0].pts[0].x, 0.f);
     EXPECT_LE(dets[0].pts[2].x, 640.f);
@@ -204,8 +204,8 @@ TEST(YoloDecode, SortsByScoreDescending) {
     put_cl(buf, 1, feat, 4, 0.9f);
     put_cl(buf, 2, feat, 4, 0.7f);
 
-    auto dets = YOLO::decode_raw_buffer(buf.data(), N, nc, false, Layout::ChannelsLast, false, 0.5f, lb, 640, 640, 0,
-                                        0);
+    auto dets =
+        YOLO::decode_raw_buffer(buf.data(), N, nc, false, Layout::ChannelsLast, false, 0.5f, lb, 640, 640, 0, 0);
     ASSERT_EQ(dets.size(), 3u);
     EXPECT_GT(dets[0].score, dets[1].score);
     EXPECT_GT(dets[1].score, dets[2].score);

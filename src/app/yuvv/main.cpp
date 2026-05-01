@@ -1,9 +1,8 @@
 #include "cli.h"
 
-#include <yuvv.h>
-
 #include <cstdlib>
 #include <iostream>
+#include <yuvv.h>
 
 int main(int argc, char** argv) {
 

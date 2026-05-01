@@ -187,8 +187,8 @@ class YOLO final : public IEngine {
      * @ref Mode::Raw outputs; this method only applies score thresholding and the
      * inverse letterbox transform.
      */
-    std::vector<algo::Detection> decode_(const std::vector<Ort::Value>& outs,
-                                         const idet::internal::LetterboxInfo& lb, int orig_w, int orig_h) const;
+    std::vector<algo::Detection> decode_(const std::vector<Ort::Value>& outs, const idet::internal::LetterboxInfo& lb,
+                                         int orig_w, int orig_h) const;
 
     std::vector<algo::Detection> decode_in_graph_nms_(const std::vector<Ort::Value>& outs,
                                                       const idet::internal::LetterboxInfo& lb, int orig_w,

@@ -92,7 +92,7 @@ inline void bgr_u8_to_chw_f32_same_size(const cv::Mat& bgr, float* dst_chw, cons
 #endif
 
 #if defined(_OPENMP)
-#pragma omp parallel for schedule(static) if (parallel)
+    #pragma omp parallel for schedule(static) if (parallel)
 #endif
     for (int y = 0; y < H; ++y) {
         const std::uint8_t* p = bgr.ptr<std::uint8_t>(y);

@@ -63,8 +63,8 @@ TEST(BgrImage, ConvertsRgbToOwnedBgr) {
 
 TEST(BgrImage, RejectsSourceSpanThatCannotBeRepresentedSafely) {
     std::array<std::uint8_t, 3> rgb{};
-    Image img = Image::view(ImageView{rgb.data(), 1, 2, static_cast<std::size_t>(std::numeric_limits<std::ptrdiff_t>::max()),
-                                      PixelFormat::RGB_U8});
+    Image img = Image::view(ImageView{
+        rgb.data(), 1, 2, static_cast<std::size_t>(std::numeric_limits<std::ptrdiff_t>::max()), PixelFormat::RGB_U8});
 
     auto converted = BgrImage::from(std::move(img));
     EXPECT_FALSE(converted.ok());

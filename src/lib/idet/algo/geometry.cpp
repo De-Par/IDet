@@ -17,12 +17,14 @@
  */
 
 #include "algo/geometry.h"
+
 #include "internal/opencv_adapter.h"
 #include "internal/opencv_geometry.h"
 
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstddef>
 #include <utility>
 #include <vector>
 
@@ -76,11 +78,11 @@ void order_quad(idet::Point2f quad[4]) noexcept {
     };
 
     // 1) NaN/Inf -> deterministic lex fallback
-    for (int i = 0; i < 4; ++i) {
+    for (std::size_t i = 0; i < 4; ++i) {
         if (!is_finite(quad[i])) {
             idet::Quad r = {quad[0], quad[1], quad[2], quad[3]};
 
-            auto swap_lex = [&](int i0, int i1) noexcept {
+            auto swap_lex = [&](std::size_t i0, std::size_t i1) noexcept {
                 if (lex_yx_less(r[i1], r[i0])) std::swap(r[i0], r[i1]);
             };
             swap_lex(0, 1);
@@ -122,7 +124,7 @@ void order_quad(idet::Point2f quad[4]) noexcept {
     //      so it scales with max_r2 directly. The additive 1.0 keeps a sensible floor for
     //      sub-pixel quads.
     float max_r2 = 0.f;
-    for (int i = 0; i < 4; ++i) {
+    for (std::size_t i = 0; i < 4; ++i) {
         const idet::Point2f v = sub(quad[i], c);
         max_r2 = std::max(max_r2, sqr_len(v));
     }
@@ -157,7 +159,7 @@ void order_quad(idet::Point2f quad[4]) noexcept {
     idet::Quad r = {quad[0], quad[1], quad[2], quad[3]};
 
     // sorting network: 4 elems, 5 comps
-    auto swap_if = [&](int i0, int i1) noexcept {
+    auto swap_if = [&](std::size_t i0, std::size_t i1) noexcept {
         if (angle_less(r[i1], r[i0])) std::swap(r[i0], r[i1]);
     };
     swap_if(0, 1);
@@ -169,8 +171,8 @@ void order_quad(idet::Point2f quad[4]) noexcept {
     // 5) degeneracy check: area2 scaled by quad radius (same scale-aware epsilon as above).
     auto poly_area2 = [&](const idet::Quad& p) noexcept -> float {
         float a = 0.f;
-        for (int i = 0; i < 4; ++i) {
-            const int j = (i + 1) & 3;
+        for (std::size_t i = 0; i < 4; ++i) {
+            const std::size_t j = (i + 1) & 3U;
             a += p[i].x * p[j].y - p[j].x * p[i].y;
         }
         return a;
@@ -181,7 +183,7 @@ void order_quad(idet::Point2f quad[4]) noexcept {
 
     if (absf(a2) <= deg_thr) {
         // fallback: lex sort + TL/BR + split remaining
-        auto swap_lex = [&](int i0, int i1) noexcept {
+        auto swap_lex = [&](std::size_t i0, std::size_t i1) noexcept {
             if (lex_yx_less(r[i1], r[i0])) std::swap(r[i0], r[i1]);
         };
         swap_lex(0, 1);
@@ -209,16 +211,16 @@ void order_quad(idet::Point2f quad[4]) noexcept {
     }
 
     // 5) rotate so first is TL (top-most then left-most)
-    int i_tl = 0;
-    for (int i = 1; i < 4; ++i) {
+    std::size_t i_tl = 0;
+    for (std::size_t i = 1; i < 4; ++i) {
         if (lex_yx_less(r[i], r[i_tl])) i_tl = i;
     }
 
     idet::Quad t;
-    t[0] = r[(i_tl + 0) & 3];
-    t[1] = r[(i_tl + 1) & 3];
-    t[2] = r[(i_tl + 2) & 3];
-    t[3] = r[(i_tl + 3) & 3];
+    t[0] = r[(i_tl + 0U) & 3U];
+    t[1] = r[(i_tl + 1U) & 3U];
+    t[2] = r[(i_tl + 2U) & 3U];
+    t[3] = r[(i_tl + 3U) & 3U];
 
     // 6) disambiguate TR vs BL among neighbors (t[1], t[3])
     const bool t1_lower = (t[1].y > t[3].y + kEpsLex);
@@ -293,13 +295,13 @@ namespace idet::algo {
 float aabb_iou(const idet::Quad& A, const idet::Quad& B) {
     auto is_finite = [](const idet::Point2f& p) noexcept { return std::isfinite(p.x) && std::isfinite(p.y); };
 
-    for (int i = 0; i < 4; ++i) {
+    for (std::size_t i = 0; i < A.size(); ++i) {
         if (!is_finite(A[i]) || !is_finite(B[i])) return 0.f;
     }
 
     auto minmax = [](const idet::Quad& q) {
         float minx = q[0].x, miny = q[0].y, maxx = q[0].x, maxy = q[0].y;
-        for (int i = 1; i < 4; ++i) {
+        for (std::size_t i = 1; i < q.size(); ++i) {
             minx = std::min(minx, q[i].x);
             miny = std::min(miny, q[i].y);
             maxx = std::max(maxx, q[i].x);
@@ -337,7 +339,7 @@ float quad_iou(const idet::Quad& A, const idet::Quad& B, bool use_fast_iou, Quad
 
     auto is_finite = [](const idet::Point2f& p) noexcept { return std::isfinite(p.x) && std::isfinite(p.y); };
 
-    for (int i = 0; i < 4; ++i) {
+    for (std::size_t i = 0; i < A.size(); ++i) {
         if (!is_finite(A[i]) || !is_finite(B[i])) return 0.f;
     }
 

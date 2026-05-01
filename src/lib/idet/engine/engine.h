@@ -23,7 +23,7 @@
 #include "algo/geometry.h"
 #include "idet.h"
 #include "internal/bgr_image.h"
-#include "internal/ort_headers.h"    // IWYU pragma: keep
+#include "internal/ort_headers.h" // IWYU pragma: keep
 #include "status.h"
 
 #include <memory>
@@ -251,7 +251,8 @@ class IEngine {
      *
      * @pre @ref binding_ready() is true.
      */
-    virtual Result<std::vector<algo::Detection>> infer_bound(const internal::BgrImageView& bgr, int ctx_idx) noexcept = 0;
+    virtual Result<std::vector<algo::Detection>> infer_bound(const internal::BgrImageView& bgr,
+                                                             int ctx_idx) noexcept = 0;
 
   protected:
     /**

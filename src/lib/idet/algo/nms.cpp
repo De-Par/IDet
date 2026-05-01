@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <limits>
 #include <numeric>
@@ -39,7 +40,7 @@ namespace idet::algo {
  */
 static inline algo::AABB aabb_of(const algo::Detection& d) noexcept {
     float minx = d.pts[0].x, miny = d.pts[0].y, maxx = d.pts[0].x, maxy = d.pts[0].y;
-    for (int k = 1; k < 4; ++k) {
+    for (std::size_t k = 1; k < d.pts.size(); ++k) {
         minx = std::min(minx, d.pts[k].x);
         miny = std::min(miny, d.pts[k].y);
         maxx = std::max(maxx, d.pts[k].x);
@@ -88,44 +89,45 @@ static inline bool aabb_overlap(const algo::AABB& a, const algo::AABB& b) noexce
  * @return A filtered subset of @p dets after NMS, in descending score order.
  */
 std::vector<algo::Detection> nms_poly(const std::vector<algo::Detection>& dets, float iou_thr_in, bool use_fast_iou) {
-    const int N = (int)dets.size();
+    const std::size_t N = dets.size();
     if (N == 0) return {};
 
     float iou_thr = iou_thr_in;
 
     // Threshold <= 0: disable suppression, just return detections sorted by score.
     if (iou_thr <= 0.0f) {
-        std::vector<int> order(N);
-        std::iota(order.begin(), order.end(), 0);
-        std::sort(order.begin(), order.end(), [&](int a, int b) { return dets[a].score > dets[b].score; });
+        std::vector<std::size_t> order(N);
+        std::iota(order.begin(), order.end(), std::size_t{0});
+        std::sort(order.begin(), order.end(),
+                  [&](std::size_t a, std::size_t b) { return dets[a].score > dets[b].score; });
 
         std::vector<Detection> out;
-        out.reserve((std::size_t)N);
-        for (int i : order)
+        out.reserve(N);
+        for (std::size_t i : order)
             out.push_back(dets[i]);
         return out;
     }
 
     // Threshold >= 1: only keep the best element (since IoU is in [0,1]).
     if (iou_thr >= 1.0f) {
-        int best = 0;
-        for (int i = 1; i < N; ++i)
+        std::size_t best = 0;
+        for (std::size_t i = 1; i < N; ++i)
             if (dets[i].score > dets[best].score) best = i;
         return {dets[best]};
     }
 
     // Sort detections by descending score; order[] is the processing permutation.
-    std::vector<int> order(N);
-    std::iota(order.begin(), order.end(), 0);
-    std::sort(order.begin(), order.end(), [&](int a, int b) { return dets[a].score > dets[b].score; });
+    std::vector<std::size_t> order(N);
+    std::iota(order.begin(), order.end(), std::size_t{0});
+    std::sort(order.begin(), order.end(), [&](std::size_t a, std::size_t b) { return dets[a].score > dets[b].score; });
 
     // rank[idx] gives the position in the sorted order, used to enforce "only suppress lower-ranked".
-    std::vector<int> rank(N, 0);
-    for (int p = 0; p < N; ++p)
+    std::vector<std::size_t> rank(N, 0);
+    for (std::size_t p = 0; p < N; ++p)
         rank[order[p]] = p;
 
     // Precompute AABBs and stats for grid sizing.
-    std::vector<algo::AABB> boxes((std::size_t)N);
+    std::vector<algo::AABB> boxes(N);
 
     float minx = std::numeric_limits<float>::infinity();
     float miny = std::numeric_limits<float>::infinity();
@@ -135,16 +137,16 @@ std::vector<algo::Detection> nms_poly(const std::vector<algo::Detection>& dets, 
     float mean_w = 0.f;
     float mean_h = 0.f;
 
-    for (int i = 0; i < N; ++i) {
-        boxes[(std::size_t)i] = aabb_of(dets[(std::size_t)i]);
+    for (std::size_t i = 0; i < N; ++i) {
+        boxes[i] = aabb_of(dets[i]);
 
-        minx = std::min(minx, boxes[(std::size_t)i].minx);
-        miny = std::min(miny, boxes[(std::size_t)i].miny);
-        maxx = std::max(maxx, boxes[(std::size_t)i].maxx);
-        maxy = std::max(maxy, boxes[(std::size_t)i].maxy);
+        minx = std::min(minx, boxes[i].minx);
+        miny = std::min(miny, boxes[i].miny);
+        maxx = std::max(maxx, boxes[i].maxx);
+        maxy = std::max(maxy, boxes[i].maxy);
 
-        mean_w += std::max(1.f, boxes[(std::size_t)i].maxx - boxes[(std::size_t)i].minx);
-        mean_h += std::max(1.f, boxes[(std::size_t)i].maxy - boxes[(std::size_t)i].miny);
+        mean_w += std::max(1.f, boxes[i].maxx - boxes[i].minx);
+        mean_h += std::max(1.f, boxes[i].maxy - boxes[i].miny);
     }
     mean_w /= (float)N;
     mean_h /= (float)N;
@@ -176,28 +178,28 @@ std::vector<algo::Detection> nms_poly(const std::vector<algo::Detection>& dets, 
     const int nx = std::max(1, (int)std::floor(span_x / (float)cell) + 1);
     const int ny = std::max(1, (int)std::floor(span_y / (float)cell) + 1);
 
-    const std::size_t grid_cells = (std::size_t)nx * (std::size_t)ny;
+    const std::size_t grid_cells = static_cast<std::size_t>(nx) * static_cast<std::size_t>(ny);
 
     // Safety: CSR arrays are cheap-ish, but still cap in extreme cases.
     // (You can tune this threshold; CSR is far lighter than vector-of-vectors.)
-    const bool use_grid = (grid_cells <= 2'000'000ULL);
+    const bool use_grid = (grid_cells <= std::size_t{2'000'000});
 
     // CSR grid storage:
     // offsets[c]..offsets[c+1] is a list of detection indices whose AABB overlaps cell c.
-    std::vector<std::uint32_t> offsets;
-    std::vector<std::uint32_t> cursor;
-    std::vector<int> items;
+    std::vector<std::size_t> offsets;
+    std::vector<std::size_t> cursor;
+    std::vector<std::size_t> items;
 
     auto cell_id = [&](int x, int y) noexcept -> std::size_t {
         return (std::size_t)y * (std::size_t)nx + (std::size_t)x;
     };
 
     if (use_grid) {
-        std::vector<std::uint32_t> counts(grid_cells, 0);
+        std::vector<std::size_t> counts(grid_cells, 0);
 
         // Pass 1: count insertions per cell.
-        for (int i = 0; i < N; ++i) {
-            const algo::AABB& a = boxes[(std::size_t)i];
+        for (std::size_t i = 0; i < N; ++i) {
+            const algo::AABB& a = boxes[i];
 
             const int x0 = std::clamp((int)std::floor((a.minx - ox) / (float)cell), 0, nx - 1);
             const int x1 = std::clamp((int)std::floor((a.maxx - ox) / (float)cell), 0, nx - 1);
@@ -220,12 +222,12 @@ std::vector<algo::Detection> nms_poly(const std::vector<algo::Detection>& dets, 
         }
 
         // Allocate flat items and make a cursor copy.
-        items.resize((std::size_t)offsets.back());
+        items.resize(offsets.back());
         cursor = offsets; // cursor will be incremented while filling
 
         // Pass 2: fill items.
-        for (int i = 0; i < N; ++i) {
-            const algo::AABB& a = boxes[(std::size_t)i];
+        for (std::size_t i = 0; i < N; ++i) {
+            const algo::AABB& a = boxes[i];
 
             const int x0 = std::clamp((int)std::floor((a.minx - ox) / (float)cell), 0, nx - 1);
             const int x1 = std::clamp((int)std::floor((a.maxx - ox) / (float)cell), 0, nx - 1);
@@ -235,16 +237,16 @@ std::vector<algo::Detection> nms_poly(const std::vector<algo::Detection>& dets, 
             for (int y = y0; y <= y1; ++y) {
                 for (int x = x0; x <= x1; ++x) {
                     const std::size_t id = cell_id(x, y);
-                    const std::uint32_t pos = cursor[id]++;
-                    items[(std::size_t)pos] = i;
+                    const std::size_t pos = cursor[id]++;
+                    items[pos] = i;
                 }
             }
         }
     }
 
-    std::vector<std::uint8_t> suppressed((std::size_t)N, 0);
+    std::vector<std::uint8_t> suppressed(N, 0);
     std::vector<algo::Detection> keep;
-    keep.reserve((std::size_t)N);
+    keep.reserve(N);
 
     // "Seen" marker array to avoid duplicates when scanning multiple cells.
     std::vector<int> seen(N, -1);
@@ -255,37 +257,36 @@ std::vector<algo::Detection> nms_poly(const std::vector<algo::Detection>& dets, 
     // once. Result of quad_iou is bit-identical to the buffer-less overload.
     QuadIouScratch iou_scratch;
 
-    for (int p = 0; p < N; ++p) {
-        const int i = order[p];
-        if (suppressed[(std::size_t)i]) continue;
+    for (std::size_t p = 0; p < N; ++p) {
+        const std::size_t i = order[p];
+        if (suppressed[i]) continue;
 
-        keep.push_back(dets[(std::size_t)i]);
-        const algo::AABB& ai = boxes[(std::size_t)i];
+        keep.push_back(dets[i]);
+        const algo::AABB& ai = boxes[i];
 
         ++stamp;
 
-        auto process_j = [&](int j) {
+        auto process_j = [&](std::size_t j) {
             if (j == i) return;
-            if (suppressed[(std::size_t)j]) return;
+            if (suppressed[j]) return;
 
             // Only suppress strictly lower-ranked detections.
             if (rank[j] <= rank[i]) return;
 
             // Cheap reject via AABB overlap.
-            if (!aabb_overlap(ai, boxes[(std::size_t)j])) return;
+            if (!aabb_overlap(ai, boxes[j])) return;
 
             // Accurate overlap test via quad IoU (or fast AABB IoU).
-            const float iou =
-                quad_iou(dets[(std::size_t)i].pts, dets[(std::size_t)j].pts, use_fast_iou, iou_scratch);
-            if (iou >= iou_thr) suppressed[(std::size_t)j] = 1;
+            const float iou = quad_iou(dets[i].pts, dets[j].pts, use_fast_iou, iou_scratch);
+            if (iou >= iou_thr) suppressed[j] = 1;
         };
 
         if (!use_grid) {
             // Fallback: scan remaining detections in score order.
-            for (int q = p + 1; q < N; ++q) {
-                const int j = order[q];
-                if (suppressed[(std::size_t)j]) continue;
-                if (!aabb_overlap(ai, boxes[(std::size_t)j])) continue;
+            for (std::size_t q = p + 1; q < N; ++q) {
+                const std::size_t j = order[q];
+                if (suppressed[j]) continue;
+                if (!aabb_overlap(ai, boxes[j])) continue;
                 process_j(j);
             }
             continue;
@@ -300,10 +301,10 @@ std::vector<algo::Detection> nms_poly(const std::vector<algo::Detection>& dets, 
         for (int y = y0; y <= y1; ++y) {
             for (int x = x0; x <= x1; ++x) {
                 const std::size_t id = cell_id(x, y);
-                const std::uint32_t beg = offsets[id];
-                const std::uint32_t end = offsets[id + 1];
-                for (std::uint32_t k = beg; k < end; ++k) {
-                    const int j = items[(std::size_t)k];
+                const std::size_t beg = offsets[id];
+                const std::size_t end = offsets[id + 1];
+                for (std::size_t k = beg; k < end; ++k) {
+                    const std::size_t j = items[k];
                     if (seen[j] == stamp) continue;
                     seen[j] = stamp;
                     process_j(j);

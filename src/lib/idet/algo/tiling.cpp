@@ -25,6 +25,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cmath>
+#include <cstddef>
 #include <iterator>
 #include <utility>
 #include <vector>
@@ -80,8 +81,8 @@ static inline float clampf(float v, float lo, float hi) noexcept {
  * @param lens Output vector of lengths (resized to K).
  */
 static inline void split_1d(int L, int K, std::vector<int>& starts, std::vector<int>& lens) {
-    starts.resize((size_t)K);
-    lens.resize((size_t)K);
+    starts.resize(static_cast<std::size_t>(K));
+    lens.resize(static_cast<std::size_t>(K));
 
     const int base = (K > 0) ? (L / K) : 0;
     const int rem = (K > 0) ? (L % K) : 0;
@@ -89,8 +90,8 @@ static inline void split_1d(int L, int K, std::vector<int>& starts, std::vector<
     int s = 0;
     for (int i = 0; i < K; ++i) {
         const int len = base + ((i < rem) ? 1 : 0);
-        starts[(size_t)i] = s;
-        lens[(size_t)i] = len;
+        starts[static_cast<std::size_t>(i)] = s;
+        lens[static_cast<std::size_t>(i)] = len;
         s += len;
     }
 }
@@ -108,7 +109,7 @@ static inline void split_1d(int L, int K, std::vector<int>& starts, std::vector<
  * @param dy Translation along Y axis (pixels).
  */
 static inline void offset_detection(algo::Detection& d, int dx, int dy) noexcept {
-    for (int k = 0; k < 4; ++k) {
+    for (std::size_t k = 0; k < d.pts.size(); ++k) {
         d.pts[k].x += float(dx);
         d.pts[k].y += float(dy);
     }
@@ -129,14 +130,14 @@ std::vector<internal::RectI> make_tiles(int img_w, int img_h, const GridSpec& gr
     split_1d(img_w, grid.cols, xs, ws); // cols -> X
     split_1d(img_h, grid.rows, ys, hs); // rows -> Y
 
-    out.reserve((size_t)grid.cols * (size_t)grid.rows);
+    out.reserve(static_cast<std::size_t>(grid.cols) * static_cast<std::size_t>(grid.rows));
 
     for (int ry = 0; ry < grid.rows; ++ry) {
         for (int cx = 0; cx < grid.cols; ++cx) {
-            const int x0 = xs[(size_t)cx];
-            const int w0 = ws[(size_t)cx];
-            const int y0 = ys[(size_t)ry];
-            const int h0 = hs[(size_t)ry];
+            const int x0 = xs[static_cast<std::size_t>(cx)];
+            const int w0 = ws[static_cast<std::size_t>(cx)];
+            const int y0 = ys[static_cast<std::size_t>(ry)];
+            const int h0 = hs[static_cast<std::size_t>(ry)];
 
             // Expand each tile by overlap fraction on each side (best-effort rounding).
             const int ex = (int)std::lround((double)w0 * (double)overlap);
