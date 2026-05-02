@@ -75,14 +75,13 @@ Model available in `assets/models/scrfd`:
 
 ## YOLO
 
-There are ready-to-use **YOLOv8** ONNX models for clothing / fashion detection on the Hugging Face Hub: **[louisJLN/yolo8-fashionpedia](https://huggingface.co/louisJLN/yolo8-fashionpedia/tree/main)**.
+The bundled cloth detector is based on the **Kesimeg YOLOv8 clothing detection** model and is exported to ONNX with dynamic spatial input.
 
-Models available in `assets/models/yolo`:
+Model available in `assets/models/yolo`:
 
-- `yolov8n-fashionpedia-1.onnx`
-- `yolov8s-fashionpedia-1.onnx`
+- `yolov8n-kesimeg.onnx`
 
-The bundled Fashionpedia model used by the scripts expects a fixed `640x640` input tensor. Keep `--fixed_hw 640x640` when using IOBinding, including tiled cloth runs.
+The model accepts dynamic input sizes aligned to the YOLO stride. For stable latency and reusable I/O buffers, the scripts still run it with fixed-shape IOBinding defaults that match the text/face launch profiles.
 
 
 ## Compatibility Notes

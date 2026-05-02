@@ -102,12 +102,12 @@ build_gcc_perf/src/app/idet/idet_app \
 
 build_gcc_perf/src/app/idet/idet_app \
     --mode cloth \
-    --model assets/models/yolo/yolov8n-fashionpedia-1.onnx \
+    --model assets/models/yolo/yolov8n-kesimeg.onnx \
     --image assets/images/cloth/small.png \
     --is_draw 0 --is_dump 0 \
     --bench_iters 1 --warmup_iters 1 \
     --runtime_policy 0 --verbose 0 \
-    --bind_io 1 --fixed_hw 640x640
+    --bind_io 1 --fixed_hw 512x960
 ```
 
 🔝 [Back to top](#quick-start)

@@ -67,7 +67,7 @@ done
 require_tc_active
 
 APP="${BUILD_DIR}/${TC_APP_REL}"
-MODEL="${MODEL:-assets/models/yolo/yolov8n-fashionpedia-1.onnx}"
+MODEL="${MODEL:-assets/models/yolo/yolov8n-kesimeg.onnx}"
 IMG="${IMG:-assets/images/cloth/medium.png}"
 
 path_exists "${APP}"
@@ -109,18 +109,18 @@ common_args=(
 )
 
 tile_args=(
-    --tiles_rc 2x2
-    --fixed_hw 640x640
+    --tiles_rc 3x3
+    --fixed_hw 192x320
     --tile_overlap 0.1
     --threads_intra 1
     --threads_inter 1
-    --tile_omp 4
+    --tile_omp 9
 )
 
 single_args=(
-    --fixed_hw 640x640
-    --max_img_size 640
-    --threads_intra 4
+    --fixed_hw 512x960
+    --max_img_size 960
+    --threads_intra 9
     --threads_inter 1
     --tile_omp 1
 )
