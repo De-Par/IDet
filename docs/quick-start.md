@@ -109,5 +109,3 @@ build_gcc_perf/src/app/idet/idet_app \
     --runtime_policy 0 --verbose 0 \
     --bind_io 1 --fixed_hw 512x960
 ```
-
-🔝 [Back to top](#quick-start)

@@ -81,5 +81,3 @@ Each detection is reported as a quadrilateral using four vertices in TL → TR �
 ```text
 x0,y0 x1,y1 x2,y2 x3,y3
 ```
-
-🔝 [Back to top](#command-line-options)

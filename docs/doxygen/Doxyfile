@@ -12,7 +12,8 @@ CREATE_SUBDIRS         = NO
 ALLOW_UNICODE_NAMES    = NO
 OUTPUT_LANGUAGE        = English
 
-INPUT                  = README.md \
+INPUT                  = docs/doxygen/mainpage.md \
+                         README.md \
                          docs/index.md \
                          docs/requirements.md \
                          docs/build.md \
@@ -23,16 +24,16 @@ INPUT                  = README.md \
                          docs/performance.md \
                          docs/troubleshooting.md \
                          docs/doxygen.md \
-                         docs/api-groups.dox \
+                         docs/doxygen/api-groups.dox \
                          include \
                          src \
                          examples \
                          tests
 
-USE_MDFILE_AS_MAINPAGE = README.md
+USE_MDFILE_AS_MAINPAGE = docs/doxygen/mainpage.md
 FILE_PATTERNS          = *.h *.hpp *.cpp *.md *.dox
 RECURSIVE              = YES
-EXCLUDE_PATTERNS       = */docs/doxygen/* \
+EXCLUDE_PATTERNS       = */docs/doxygen/html/* \
                          */build*/* \
                          */subprojects/* \
                          */assets/* \
@@ -63,6 +64,7 @@ QT_AUTOBRIEF           = NO
 MULTILINE_CPP_IS_BRIEF = NO
 MARKDOWN_SUPPORT       = YES
 MARKDOWN_ID_STYLE      = GITHUB
+TOC_INCLUDE_HEADINGS   = 5
 AUTOLINK_SUPPORT       = YES
 BUILTIN_STL_SUPPORT    = YES
 CPP_CLI_SUPPORT        = NO
@@ -85,9 +87,11 @@ HTML_OUTPUT            = html
 HTML_DYNAMIC_MENUS     = YES
 HTML_DYNAMIC_SECTIONS  = YES
 HTML_COLORSTYLE        = LIGHT
+HTML_EXTRA_STYLESHEET  = docs/doxygen/doxygen-theme.css
 GENERATE_TREEVIEW      = YES
-FULL_SIDEBAR           = NO
+FULL_SIDEBAR           = YES
 DISABLE_INDEX          = NO
+HTML_INDEX_NUM_ENTRIES = 140
 SEARCHENGINE           = YES
 SERVER_BASED_SEARCH    = NO
 
@@ -107,5 +111,4 @@ INCLUDE_GRAPH          = YES
 INCLUDED_BY_GRAPH      = YES
 GRAPHICAL_HIERARCHY    = YES
 DIRECTORY_GRAPH        = YES
-DOT_MULTI_TARGETS      = YES
 DOT_CLEANUP            = YES

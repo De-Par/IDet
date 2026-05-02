@@ -97,5 +97,3 @@ Best practice:
 - After stitching, polygon NMS removes duplicate boxes across tiles using IoU (typical `0.2–0.4` for text/face).
 
 > 💡 **Note:** For heavy servers: tiling scales well with OpenMP outer threads. Keep ORT threads small unless model operators are the real bottleneck.
-
-🔝 [Back to top](#performance-guide)

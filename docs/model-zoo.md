@@ -95,5 +95,3 @@ The model accepts dynamic input sizes aligned to the YOLO stride. For stable lat
 > 💡 **Notes & tips:**
 > - If you switch to Paddle normalization, update mean / std in code accordingly.
 > - For highest stability in batch/production: combine **IOBinding** (`--bind_io 1`) with a **fixed input size** (`--fixed_hw`) and keep ORT threads small (`--threads_intra 1–2`) while scaling tiles via OpenMP (`--tile_omp`).
-
-🔝 [Back to top](#model-zoo)

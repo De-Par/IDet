@@ -71,5 +71,3 @@ To fix the underlying mismatch:
 **Q:** Can OpenCV be used directly in my app?
 
 **A:** Yes. Keep OpenCV at the app boundary and wrap `cv::Mat` as `idet::ImageView`; library internals keep OpenCV behind adapters where possible. See [C++ Integration Guide](integration.md).
-
-🔝 [Back to top](#troubleshooting--faq)

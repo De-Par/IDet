@@ -4,6 +4,8 @@
 
 **IDet** ships a local Doxygen setup for browsing the public API, internal engine boundaries, algorithms, examples, and checked integration tests from one HTML tree.
 
+The generated site uses Doxygen's default HTML output with a small IDet CSS layer for branding, readable cards, bounded logos, and responsive layout. Theme and Doxygen configuration sources live under `docs/doxygen`; only `docs/doxygen/html` is generated output.
+
 
 ## Requirements
 
@@ -35,6 +37,17 @@ docs/doxygen/html/index.html
 `--check` verifies that the main HTML entry points were produced.
 
 
+## Source Layout
+
+| Path | Purpose |
+|:---|:---|
+| `docs/doxygen/Doxyfile` | Doxygen configuration |
+| `docs/doxygen/mainpage.md` | Doxygen-only landing page |
+| `docs/doxygen/api-groups.dox` | API group definitions |
+| `docs/doxygen/doxygen-theme.css` | Minimal IDet overrides on top of default Doxygen HTML |
+| `docs/doxygen/html` | Generated HTML, ignored by git |
+
+
 ## View
 
 Serve the generated HTML from the repository root:
@@ -61,8 +74,6 @@ For a static preview without a server, open `docs/doxygen/html/index.html` direc
 | Applications | `src/app` |
 | Examples | `examples` |
 | Tests | `tests` |
-| Narrative docs | `README.md`, `docs/*.md` |
+| Narrative docs | `docs/*.md`, `docs/doxygen/mainpage.md` |
 
 Generated HTML is intentionally ignored by git; regenerate it locally when needed.
-
-🔝 [Back to top](#doxygen-api-reference)

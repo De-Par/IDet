@@ -23,7 +23,7 @@ Usage:
     scripts/generate_doxygen.sh [--clean] [--serve [PORT]] [--check]
 
 Options:
-    --clean        Remove the previous docs/doxygen output before generation.
+    --clean        Remove the previous docs/doxygen/html output before generation.
     --serve [P]    Generate docs and serve docs/doxygen/html on localhost.
                    PORT defaults to 8000.
     --check        Generate docs and verify that the main HTML files exist.
@@ -80,17 +80,30 @@ fi
 
 OUT_DIR="docs/doxygen"
 HTML_DIR="${OUT_DIR}/html"
-CONFIG="docs/Doxyfile"
+CONFIG="${OUT_DIR}/Doxyfile"
+ASSETS_SRC="docs/assets"
+ASSETS_OUT="${HTML_DIR}/assets"
+README_ASSETS_OUT="${HTML_DIR}/docs/assets"
 
 [[ -f "${CONFIG}" ]] || die "Doxygen config not found: ${CONFIG}"
 
-if (( CLEAN == 1 )) && [[ -d "${OUT_DIR}" ]]; then
-    rm -rf -- "${OUT_DIR}"
+if (( CLEAN == 1 )) && [[ -d "${HTML_DIR}" ]]; then
+    rm -rf -- "${HTML_DIR}"
 fi
 
 log "[INFO] Doxygen version: $("${DOXYGEN_BIN}" --version)"
 log "[INFO] Generating API docs into ${HTML_DIR}"
 "${DOXYGEN_BIN}" "${CONFIG}"
+
+if [[ -d "${ASSETS_SRC}" ]]; then
+    rm -rf -- "${ASSETS_OUT}"
+    mkdir -p -- "${ASSETS_OUT}"
+    cp -R -- "${ASSETS_SRC}/." "${ASSETS_OUT}/"
+
+    rm -rf -- "${README_ASSETS_OUT}"
+    mkdir -p -- "${README_ASSETS_OUT}"
+    cp -R -- "${ASSETS_SRC}/." "${README_ASSETS_OUT}/"
+fi
 
 if (( CHECK == 1 || SERVE == 1 )); then
     [[ -f "${HTML_DIR}/index.html" ]] || die "Missing generated file: ${HTML_DIR}/index.html"

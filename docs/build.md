@@ -245,5 +245,3 @@ scripts/build.sh force -- -Dembed_onnx_models=true
 | YOLO (cloth) | `assets/models/yolo/yolov8n-kesimeg.onnx` | `IDET_HAVE_YOLO_EMBED` |
 
 If a particular source file is missing, the build emits a warning and continues without embedding that engine's model — the binary will still need an external `--model` path for that engine.
-
-🔝 [Back to top](#build--install)

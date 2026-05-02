@@ -1,0 +1,357 @@
+/*
+ * IDet Doxygen theme.
+ *
+ * This file intentionally stays small and builds on top of the stock Doxygen
+ * HTML output. It only fixes project branding, readability, landing-page
+ * blocks, and responsive layout. No external Doxygen theme is required.
+ */
+
+:root {
+  --idet-blue: #1769e0;
+  --idet-blue-dark: #0f4fb2;
+  --idet-orange: #ea580c;
+  --idet-ink: #111827;
+  --idet-muted: #536173;
+  --idet-line: #d9e2ef;
+  --idet-soft: #f6f9fd;
+  --idet-panel: #ffffff;
+  --idet-code: #f3f6fb;
+}
+
+html {
+  font-size: 15px;
+}
+
+body {
+  color: var(--idet-ink);
+  background:
+    linear-gradient(180deg, rgba(23, 105, 224, 0.05), rgba(246, 249, 253, 0) 240px),
+    var(--idet-soft);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  line-height: 1.65;
+}
+
+a,
+a:visited,
+a.el,
+a.elRef {
+  color: var(--idet-blue-dark);
+}
+
+a:hover {
+  color: var(--idet-blue);
+  text-decoration: underline;
+}
+
+#top {
+  border-bottom: 1px solid rgba(23, 105, 224, 0.14);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+
+#titlearea {
+  padding: 8px 18px;
+  background: var(--idet-panel);
+}
+
+#projectrow {
+  height: 62px;
+}
+
+#projectlogo {
+  width: 80px;
+  padding-right: 12px;
+  vertical-align: middle;
+}
+
+#projectlogo img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 68px;
+  max-height: 46px;
+  object-fit: contain;
+}
+
+#projectalign {
+  padding-left: 0;
+  vertical-align: middle;
+}
+
+#projectname {
+  color: #0f172a;
+  font-size: 1.45rem;
+  line-height: 1.15;
+  font-weight: 700;
+}
+
+#projectbrief {
+  max-width: 62rem;
+  color: var(--idet-muted);
+  font-size: 0.92rem;
+  line-height: 1.35;
+}
+
+#main-nav,
+#main-menu,
+#nav-tree,
+#side-nav {
+  background: var(--idet-panel);
+}
+
+#nav-tree .selected {
+  background-image: none;
+  background-color: rgba(23, 105, 224, 0.1);
+  color: var(--idet-blue-dark);
+  text-shadow: none;
+}
+
+#nav-tree .label {
+  font-size: 0.9rem;
+}
+
+.ui-resizable-e {
+  background: var(--idet-line);
+}
+
+div.header {
+  background: transparent;
+  border: 0;
+}
+
+div.headertitle {
+  padding: 0;
+}
+
+.headertitle .title {
+  color: #0f172a;
+  font-size: 1.8rem;
+  font-weight: 700;
+}
+
+.contents {
+  max-width: 1160px;
+  margin: 18px auto 32px;
+  padding: 28px 34px;
+  background: var(--idet-panel);
+  border: 1px solid rgba(217, 226, 239, 0.95);
+  border-radius: 10px;
+  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.06);
+}
+
+.textblock {
+  max-width: 100%;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  color: #0f172a;
+  line-height: 1.25;
+}
+
+h1.doxsection,
+h2.groupheader {
+  border-bottom: 1px solid var(--idet-line);
+  padding-bottom: 0.35rem;
+}
+
+table.markdownTable {
+  border-collapse: separate;
+  border-spacing: 0;
+  overflow: hidden;
+  border: 1px solid var(--idet-line);
+  border-radius: 8px;
+}
+
+table.markdownTable th {
+  background: #eef5ff;
+  color: #16345d;
+  font-weight: 700;
+}
+
+table.markdownTable td,
+table.markdownTable th {
+  border-color: var(--idet-line);
+  padding: 8px 11px;
+}
+
+div.fragment,
+pre.fragment {
+  border: 1px solid #d5e2f2;
+  border-radius: 8px;
+  background: var(--idet-code);
+  line-height: 1.5;
+}
+
+code,
+.tt,
+.computeroutput {
+  background: var(--idet-code);
+  border-radius: 4px;
+  padding: 0.1rem 0.25rem;
+}
+
+.memitem {
+  border-color: var(--idet-line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.memproto {
+  background: #eef5ff;
+  border-color: var(--idet-line);
+  text-shadow: none;
+}
+
+.memdoc {
+  border-color: var(--idet-line);
+}
+
+dl.note,
+dl.warning,
+dl.attention,
+dl.important {
+  border-radius: 8px;
+}
+
+.idet-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(200px, 300px);
+  gap: 28px;
+  align-items: center;
+  margin: 4px 0 30px;
+}
+
+.idet-eyebrow {
+  display: block;
+  margin: 0 0 10px;
+  color: var(--idet-orange);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.idet-hero-title {
+  display: block;
+  margin: 0 0 14px;
+  color: #0f172a;
+  font-size: clamp(2rem, 4vw, 3.6rem);
+  font-weight: 700;
+  line-height: 1.04;
+}
+
+.idet-lead {
+  display: block;
+  max-width: 740px;
+  color: var(--idet-muted);
+  font-size: 1.05rem;
+}
+
+.idet-main-logo {
+  display: block;
+  width: min(100%, 300px);
+  height: auto;
+  margin-left: auto;
+}
+
+.idet-pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 18px 0 4px;
+}
+
+.idet-pill {
+  display: inline-block;
+  padding: 6px 10px;
+  border: 1px solid #cfe0f6;
+  border-radius: 999px;
+  background: #f3f8ff;
+  color: #184477;
+  font-size: 0.88rem;
+  font-weight: 650;
+}
+
+.idet-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin: 24px 0;
+}
+
+.idet-card {
+  display: block;
+  min-height: 126px;
+  padding: 18px;
+  border: 1px solid #d9e5f5;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #ffffff, #f8fbff);
+}
+
+.idet-card-title {
+  display: block;
+  margin: 0 0 8px;
+  color: #0f172a;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.idet-card-copy {
+  display: block;
+  margin: 0 0 10px;
+  color: var(--idet-muted);
+}
+
+.contents img[src="assets/idet_logo.png"],
+.contents img[src="docs/assets/idet_logo.png"] {
+  max-width: 300px;
+  height: auto;
+}
+
+@media (max-width: 860px) {
+  .contents {
+    margin: 10px 10px 24px;
+    padding: 20px;
+  }
+
+  .idet-hero {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+
+  .idet-main-logo {
+    margin: 0;
+    max-width: 220px;
+  }
+}
+
+@media (max-width: 720px) {
+  #titlearea {
+    padding: 6px 10px;
+  }
+
+  #projectrow {
+    height: 54px;
+  }
+
+  #projectlogo {
+    width: 60px;
+    padding-right: 8px;
+  }
+
+  #projectlogo img {
+    max-width: 50px;
+    max-height: 34px;
+  }
+
+  #projectname {
+    font-size: 1.2rem;
+  }
+
+  #projectbrief {
+    font-size: 0.82rem;
+  }
+}

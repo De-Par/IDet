@@ -212,5 +212,3 @@ A robust host pipeline usually looks like this:
 4. Use `state()` for cheap polling.
 5. Keep queueing and cancellation outside IDet.
 6. Tune ORT intra-op threads, tile OpenMP threads, and worker count together to avoid oversubscription.
-
-🔝 [Back to top](#c-integration-guide)

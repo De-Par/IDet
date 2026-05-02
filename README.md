@@ -163,5 +163,3 @@ Supported model families:
 - **DBNet** / **DBNet++** / **PP-OCR** (text detection)
 - **SCRFD** (face detection)
 - **YOLO** (cloth detection)
-
-🔝 [Back to documentation](#documentation)
