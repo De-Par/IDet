@@ -1,0 +1,28 @@
+/**
+ * @defgroup idet IDet Library
+ * @brief Core detector library implementation and public facade.
+ */
+
+/**
+ * @defgroup idet_engine Detector Engines
+ * @ingroup idet
+ * @brief Internal ONNX Runtime engine implementations and engine factory.
+ */
+
+/**
+ * @defgroup idet_algo Algorithms
+ * @ingroup idet
+ * @brief Geometry, tiling, and non-maximum suppression algorithms used by detectors.
+ */
+
+/**
+ * @defgroup idet_internal Internal Utilities
+ * @ingroup idet
+ * @brief Internal image, tensor, OpenCV adapter, and embedded-model helpers.
+ */
+
+/**
+ * @defgroup idet_platform Platform Runtime
+ * @ingroup idet
+ * @brief CPU topology, OpenMP, NUMA, and runtime policy helpers.
+ */

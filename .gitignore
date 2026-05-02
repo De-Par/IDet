@@ -83,6 +83,7 @@ reports
 profiling
 data
 docs/api
+docs/doxygen
 docs/site
 *.log
 *.tmp
