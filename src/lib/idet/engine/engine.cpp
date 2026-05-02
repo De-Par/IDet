@@ -113,7 +113,7 @@ Status ensure_ort_api_initialized_() noexcept {
     return Status::Ok();
 }
 
-/**
+/*
  * @brief Base engine constructor.
  *
  * @details
@@ -131,7 +131,7 @@ IEngine::IEngine(const DetectorConfig& cfg, const char* log_id) : cfg_(cfg), env
 // NOTE: env_ is a std::shared_ptr<Ort::Env>; each engine keeps its own copy of the singleton so
 // the Env outlives the engine's session even at process shutdown.
 
-/**
+/*
  * @brief Validate whether the proposed configuration can be applied as a hot update.
  *
  * @details
@@ -178,7 +178,7 @@ Status IEngine::check_hot_update_(const DetectorConfig& next) const noexcept {
     return Status::Ok();
 }
 
-/**
+/*
  * @brief Apply common parts of a hot configuration update to the stored config.
  *
  * @details
@@ -197,7 +197,7 @@ void IEngine::apply_hot_common_(const DetectorConfig& next) noexcept {
     cfg_.verbose = next.verbose;
 }
 
-/**
+/*
  * @brief Create and configure the ONNX Runtime session for the engine.
  *
  * @details

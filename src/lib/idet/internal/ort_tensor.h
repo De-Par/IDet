@@ -99,7 +99,7 @@ struct TensorDesc {
     /**
      * @brief Product of dimensions with "safe" substitution for dynamic values.
      *
-     * Computed using @ref safe_numel(), where non-positive dimensions are treated as 1.
+     * Computed using @c safe_numel(), where non-positive dimensions are treated as 1.
      * This is useful for bounds checks on contiguous buffers, but should not be interpreted
      * as the true runtime element count when shape contains dynamic values.
      */

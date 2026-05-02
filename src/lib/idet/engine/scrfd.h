@@ -6,9 +6,9 @@
  * @details
  * Implements a production-oriented SCRFD inference backend on top of ONNX Runtime.
  * The engine supports both:
- * - **unbound** mode (@ref infer_unbound): allocates per call, safe for concurrent calls,
- * - **bound** mode (@ref setup_binding + @ref infer_bound): preallocates/binds I/O per context
- *   for maximum throughput; concurrent use is safe only with distinct context indices.
+ * - **unbound** mode (@ref idet::engine::SCRFD::infer_unbound): allocates per call, safe for concurrent calls,
+ * - **bound** mode (@ref idet::engine::SCRFD::setup_binding + @ref idet::engine::SCRFD::infer_bound):
+ * preallocates/binds I/O per context for maximum throughput; concurrent use is safe only with distinct context indices.
  *
  * Output export variability:
  * SCRFD models are frequently exported with different output tensor layouts depending on
@@ -24,8 +24,8 @@
  * @ref idet::algo::Detection results in original image coordinates.
  *
  * Thread-safety:
- * - @ref infer_unbound is thread-safe for concurrent calls.
- * - @ref infer_bound is thread-safe **only** if each concurrent caller uses a unique @p ctx_idx.
+ * - @ref idet::engine::SCRFD::infer_unbound is thread-safe for concurrent calls.
+ * - @ref idet::engine::SCRFD::infer_bound is thread-safe **only** if each concurrent caller uses a unique @p ctx_idx.
  *
  * @note
  * Input tensors are expected to be float32 in CHW layout ([1,3,H,W]) with engine-defined
@@ -57,7 +57,7 @@ namespace idet::engine {
  * - a score/classification tensor (face confidence),
  * - a bbox regression tensor (x1,y1,x2,y2 or equivalent parameterization, export-dependent).
  *
- * The implementation keeps a cached list of heads (@ref heads_) where each head stores
+ * The implementation keeps a cached list of heads where each head stores
  * probed output indices and inferred layouts/shapes. This probing is performed during
  * binding setup (fixed shape) and may also be performed lazily for unbound inference
  * depending on the model export characteristics.
@@ -134,21 +134,22 @@ class SCRFD final : public IEngine {
     /**
      * @brief Run inference in unbound mode (per-call allocations).
      *
-     * @param bgr Input image in BGR format (CV_8UC3).
+     * @param bgr_view Input image in BGR format (CV_8UC3).
      * @return Detections in original image coordinates or an error status.
      */
-    Result<std::vector<algo::Detection>> infer_unbound(const internal::BgrImageView& bgr) noexcept override;
+    Result<std::vector<algo::Detection>> infer_unbound(const internal::BgrImageView& bgr_view) noexcept override;
 
     /**
      * @brief Run inference in bound mode using a prepared binding context.
      *
-     * @param bgr Input image in BGR format (CV_8UC3).
+     * @param bgr_view Input image in BGR format (CV_8UC3).
      * @param ctx_idx Index of binding context in [0, bound_contexts()).
      * @return Detections in original image coordinates or an error status.
      *
      * @pre @ref binding_ready() is true.
      */
-    Result<std::vector<algo::Detection>> infer_bound(const internal::BgrImageView& bgr, int ctx_idx) noexcept override;
+    Result<std::vector<algo::Detection>> infer_bound(const internal::BgrImageView& bgr_view,
+                                                     int ctx_idx) noexcept override;
 
   private:
     /**

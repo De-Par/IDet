@@ -61,13 +61,13 @@ std::vector<internal::RectI> make_tiles(int img_w, int img_h, const GridSpec& gr
  *
  * @details
  * High-level algorithm:
- *  1) Build tiles via @ref make_tiles.
+ *  1) Build tiles via @ref idet::algo::make_tiles.
  *  2) For each tile, run inference on ROI view (no deep copy) and get detections in tile-local space.
  *  3) Shift detections by tile origin (x += rc.x, y += rc.y) and append to the merged list.
  *
  * Merging:
  *  - This function only concatenates detections from tiles.
- *  - It does NOT perform cross-tile suppression; call @ref nms_poly on the merged output if needed.
+ *  - It does NOT perform cross-tile suppression; call @ref idet::algo::nms_poly on the merged output if needed.
  *
  * Unbound vs bound inference:
  *  - If @p bound is false, calls @ref idet::engine::IEngine::infer_unbound for every tile.

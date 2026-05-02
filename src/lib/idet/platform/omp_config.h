@@ -37,7 +37,7 @@ namespace idet::platform {
  * Recommended call order:
  *  1) @c detect_topology()
  *  2) @c bind_for_threads(...)
- *  3) @ref configure_openmp_affinity(...)
+ *  3) @c configure_openmp_affinity(...)
  *  4) Create ORT sessions / enter OpenMP parallel regions
  *
  * @param tile_omp_threads Number of OpenMP threads intended for tile processing.

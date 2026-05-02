@@ -23,7 +23,8 @@
  *    pipeline (no NMS inside this engine to keep it composable with tiling).
  *
  * The engine probes the ONNX outputs at construction time and records the resolved
- * @ref Mode and @ref Layout. Both unbound and bound inference modes are supported.
+ * @ref idet::engine::YOLO::Mode and @ref idet::engine::YOLO::Layout. Both unbound and bound inference modes are
+ * supported.
  */
 
 #pragma once
@@ -45,7 +46,7 @@ namespace idet::engine {
  *
  * @details
  * One engine class covers all YOLO variants. Output format is auto-detected at
- * construction time and stored as @ref Mode + @ref Layout.
+ * construction time and stored as @ref idet::engine::YOLO::Mode + @ref idet::engine::YOLO::Layout.
  *
  * Thread-safety:
  * - @ref infer_unbound is safe for concurrent calls.
@@ -81,8 +82,9 @@ class YOLO final : public IEngine {
     Status setup_binding(int w, int h, int contexts) noexcept override;
     void unset_binding() noexcept override;
 
-    Result<std::vector<algo::Detection>> infer_unbound(const internal::BgrImageView& bgr) noexcept override;
-    Result<std::vector<algo::Detection>> infer_bound(const internal::BgrImageView& bgr, int ctx_idx) noexcept override;
+    Result<std::vector<algo::Detection>> infer_unbound(const internal::BgrImageView& bgr_view) noexcept override;
+    Result<std::vector<algo::Detection>> infer_bound(const internal::BgrImageView& bgr_view,
+                                                     int ctx_idx) noexcept override;
 
   public:
     /**
@@ -110,7 +112,7 @@ class YOLO final : public IEngine {
          * (channels-last). Each anchor stores @c (cx,cy,w,h, [obj], cls_0..cls_{nc-1})
          * in network input pixel space. Class score = @c cls_max; YOLOv5-style exports may
          * also multiply by @c obj, while YOLOv8/v11-style exports usually fold objectness
-         * into class scores; see @ref has_objectness_.
+         * into class scores; see @c has_objectness_.
          */
         Raw = 2,
     };
@@ -202,7 +204,7 @@ class YOLO final : public IEngine {
      * @brief Decode a raw YOLO output buffer into detections (testable helper).
      *
      * @details
-     * Pure-math counterpart of @ref decode_raw_ that operates on a contiguous float buffer
+     * Pure-math counterpart of @c decode_raw_ that operates on a contiguous float buffer
      * without involving an Ort session. Exposed for unit testing and for any caller that
      * wants to drive the YOLO post-processing from a custom inference path.
      *

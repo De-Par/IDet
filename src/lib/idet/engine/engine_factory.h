@@ -13,7 +13,7 @@
  * - Face  task / SCRFD engine -> SCRFD backend
  * - Cloth task / Yolo  engine -> YOLO backend (in-graph or raw NMS)
  *
- * Adding a new family is one entry in the registry plus a new @ref IEngine subclass —
+ * Adding a new family is one entry in the registry plus a new @ref idet::engine::IEngine subclass —
  * no changes to this dispatch logic, no new switch arms, no plumbing in @c idet.cpp.
  *
  * The factory is responsible for basic configuration validation and for returning

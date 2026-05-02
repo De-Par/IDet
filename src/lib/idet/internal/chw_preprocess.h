@@ -114,13 +114,13 @@ inline void bgr_u8_to_chw_f32_same_size(const cv::Mat& bgr, float* dst_chw, cons
  * @brief Resizes (if needed) and converts a BGR @c CV_8UC3 image into a CHW float32 tensor.
  *
  * If the input already matches the requested output size, this function performs a direct
- * conversion via @ref bgr_u8_to_chw_f32_same_size without allocating temporaries.
+ * conversion via @c bgr_u8_to_chw_f32_same_size without allocating temporaries.
  *
  * Otherwise, it uses @c cv::resize (linear interpolation) into a temporary @c cv::Mat and then
  * converts the resized image.
  *
  * Preconditions:
- * - Same as @ref bgr_u8_to_chw_f32_same_size for the input image type and buffer sizes.
+ * - Same as @c bgr_u8_to_chw_f32_same_size for the input image type and buffer sizes.
  * - @p dst_w and @p dst_h must be positive.
  * - @p dst_chw must point to a writable buffer of at least @c 3 * dst_h * dst_w floats.
  *

@@ -94,7 +94,7 @@ enum class EngineKind : std::uint8_t {
  * @brief Maps an engine kind to its corresponding high-level task.
  *
  * @param kind Engine kind.
- * @return Task category implied by @p kind, or @ref Task::None for unknown kinds.
+ * @return Task category implied by @p kind, or @ref idet::Task::None for unknown kinds.
  */
 constexpr Task engine_task(EngineKind kind) noexcept {
     switch (kind) {
@@ -350,7 +350,7 @@ struct DetectorConfig final {
     /**
      * @brief Validates the configuration for internal consistency and supported values.
      *
-     * @return @ref Status::Ok() if the configuration is valid, otherwise a non-OK status describing
+     * @return @c Status::Ok() if the configuration is valid, otherwise a non-OK status describing
      *         the first detected issue.
      */
     [[nodiscard]] IDET_API Status validate() const noexcept;
@@ -491,7 +491,7 @@ class IDET_API Detector final {
      * reinitializing runtime resources.
      *
      * @param config New configuration to apply.
-     * @return @ref Status::Ok() on success, otherwise an error status.
+     * @return @c Status::Ok() on success, otherwise an error status.
      */
     Status update_config(const DetectorConfig& config) noexcept;
 
@@ -504,7 +504,7 @@ class IDET_API Detector final {
      * @param width Input width in pixels.
      * @param height Input height in pixels.
      * @param contexts Number of independent contexts to prepare (e.g., per-thread contexts).
-     * @return @ref Status::Ok() on success, otherwise an error status.
+     * @return @c Status::Ok() on success, otherwise an error status.
      *
      * @note
      * The meaning of "contexts" is implementation-defined. Commonly it represents the number of
@@ -555,7 +555,7 @@ class IDET_API Detector final {
  * @brief State of a single-flight asynchronous detector worker.
  *
  * The worker accepts at most one submitted image at a time. A completed result must be consumed
- * with @ref DetectorWorker::take_result before submitting the next image.
+ * with @ref idet::DetectorWorker::take_result before submitting the next image.
  */
 enum class DetectorWorkerState : std::uint8_t {
     /** Worker is ready to accept a new image. */
@@ -696,7 +696,7 @@ class IDET_API DetectorWorker final {
  *
  * @param policy Runtime policy parameters.
  * @param verbose Enables logging of applied settings (implementation-defined).
- * @return @ref Status::Ok() if the policy is applied successfully, otherwise an error status.
+ * @return @c Status::Ok() if the policy is applied successfully, otherwise an error status.
  *
  * @warning
  * Some settings may be process-global (e.g., OpenCV threading and some OpenMP configuration),

@@ -237,7 +237,7 @@ class DetectorImpl final {
     /**
      * @brief Validates config and creates the underlying engine instance.
      *
-     * @return @ref idet::Status::Ok() on success, otherwise a non-OK status.
+     * @return @c idet::Status::Ok() on success, otherwise a non-OK status.
      *
      * @note Engine creation is delegated to @ref idet::engine::create_engine.
      */
@@ -267,7 +267,7 @@ class DetectorImpl final {
      * - verbosity
      *
      * @param cfg New configuration.
-     * @return @ref idet::Status::Ok() on success, otherwise a non-OK status.
+     * @return @c idet::Status::Ok() on success, otherwise a non-OK status.
      */
     Status update_config(const DetectorConfig& cfg) noexcept {
         const Status vs = cfg.validate();
@@ -310,7 +310,7 @@ class DetectorImpl final {
      * @param w Input width in pixels.
      * @param h Input height in pixels.
      * @param contexts Number of independent binding contexts (normalized to >= 1).
-     * @return @ref idet::Status::Ok() on success, otherwise a non-OK status.
+     * @return @c idet::Status::Ok() on success, otherwise a non-OK status.
      */
     Status prepare_binding(int w, int h, int contexts) noexcept {
         if (!engine_) return Status::Invalid("prepare_binding: engine not initialized");
@@ -718,7 +718,7 @@ void Detector::reset() noexcept {
     vtbl_ = nullptr;
 }
 
-/**
+/*
  * @brief Creates a detector instance (allocates implementation and initializes the engine).
  *
  * @details
@@ -728,15 +728,15 @@ void Detector::reset() noexcept {
  * @param cfg Detector configuration.
  * @return Result::Ok(detector) on success, or Result::Err(status) on failure.
  */
-Result<Detector> Detector::create(const DetectorConfig& cfg) noexcept {
-    const Status vs = cfg.validate();
+Result<Detector> Detector::create(const DetectorConfig& config) noexcept {
+    const Status vs = config.validate();
     if (!vs.ok()) return Result<Detector>::Err(vs);
 
     Detector d;
     std::unique_ptr<detail::DetectorImpl> p;
 
     try {
-        p.reset(new (std::nothrow) detail::DetectorImpl(cfg));
+        p.reset(new (std::nothrow) detail::DetectorImpl(config));
         if (!p) return Result<Detector>::Err(Status::OutOfMemory("Detector::create: alloc failed"));
 
         const Status is = p->init_engine();
@@ -868,12 +868,12 @@ void DetectorWorker::reset() noexcept {
     impl_ = nullptr;
 }
 
-/**
+/*
  * @brief Applies the requested runtime policy (thread/CPU/memory binding).
  *
  * @details
  * This is a thin public wrapper that delegates to the platform-specific implementation.
- * On non-supported platforms, the implementation may return @ref idet::Status::Ok()
+ * On non-supported platforms, the implementation may return @c idet::Status::Ok()
  * without applying any binding.
  *
  * @param policy Runtime policy (CPU set, NUMA node set, binding knobs).

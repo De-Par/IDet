@@ -4,7 +4,7 @@
  * @brief SCRFD engine implementation (layout probing, decoding, and ORT binding).
  *
  * @details
- * This translation unit implements @ref idet::engine::SCRFD:
+ * This translation unit implements @c idet::engine::SCRFD:
  * - CHW float32 preprocessing from BGR input,
  * - unbound inference (per-call tensors) via Ort::Session::Run,
  * - bound inference via Ort::IoBinding and preallocated I/O buffers,
@@ -552,7 +552,7 @@ std::vector<algo::Detection> SCRFD::decode_(const std::vector<Head>& heads, cons
     return dets;
 }
 
-/**
+/*
  * @brief Prepare bound inference: preallocate per-context I/O and bind outputs by name.
  *
  * @details
@@ -655,11 +655,14 @@ void SCRFD::unset_binding() noexcept {
     bound_out_indices_.clear();
 }
 
-/**
+/*
  * @brief Unbound inference: run ORT and decode to detections.
  *
  * @details
  * Probes heads lazily on first call if @ref heads_ is empty (export-dependent).
+ *
+ * @param bgr_view Input BGR image view.
+ * @return Result with decoded detections or an error status.
  */
 Result<std::vector<algo::Detection>> SCRFD::infer_unbound(const internal::BgrImageView& bgr_view) noexcept {
     try {
@@ -709,8 +712,12 @@ Result<std::vector<algo::Detection>> SCRFD::infer_unbound(const internal::BgrIma
     }
 }
 
-/**
+/*
  * @brief Bound inference: uses preallocated per-context buffers and IoBinding.
+ *
+ * @param bgr_view Input BGR image view.
+ * @param ctx_idx Bound context index.
+ * @return Result with decoded detections or an error status.
  *
  * @pre @ref binding_ready() is true and ctx_idx is valid.
  * @note The implementation assumes the bound input shape is (align_up(bound_w_,32), align_up(bound_h_,32)).

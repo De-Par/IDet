@@ -150,12 +150,12 @@ void dump_openmp_runtime() {
 #endif
 }
 
-/**
+/*
  * @brief Configures OpenMP placement/binding and determinism settings.
  *
  * @details
  * Thread count selection:
- * - If @p omp_threads > 0, the value is used (clamped to @c INT_MAX).
+ * - If @p tile_omp_threads > 0, the value is used (clamped to @c INT_MAX).
  * - Otherwise:
  *   - on Linux: the effective CPU count is derived from the current process affinity mask,
  *   - elsewhere: @c std::thread::hardware_concurrency() is used as a fallback.
@@ -180,18 +180,18 @@ void dump_openmp_runtime() {
  * - When @c threads > 1, additional wait-policy knobs are set to reduce sleep/wake overhead
  *   in tight parallel workloads (best-effort and runtime-dependent).
  *
- * @param omp_threads Requested number of OpenMP threads for tiling (0 means auto).
+ * @param tile_omp_threads Requested number of OpenMP threads for tiling (0 means auto).
  * @param verbose If true, prints the effective OpenMP configuration to stdout.
  *
  * @warning
  * This function modifies process-global environment variables and may affect other libraries.
  * If the OpenMP runtime has been initialized before this call, settings may not fully apply.
  */
-void configure_openmp_affinity(std::size_t omp_threads, bool verbose) {
+void configure_openmp_affinity(std::size_t tile_omp_threads, bool verbose) {
     int threads = 1;
 
-    if (omp_threads > 0) {
-        threads = (omp_threads > static_cast<std::size_t>(INT_MAX)) ? INT_MAX : static_cast<int>(omp_threads);
+    if (tile_omp_threads > 0) {
+        threads = (tile_omp_threads > static_cast<std::size_t>(INT_MAX)) ? INT_MAX : static_cast<int>(tile_omp_threads);
     } else {
 #if defined(__linux__)
         threads = effective_cpu_count_from_affinity();

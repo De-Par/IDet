@@ -4,7 +4,7 @@
  * @brief CPU topology discovery, affinity application, and NUMA diagnostics implementation.
  *
  * @details
- * Implements APIs declared in @ref cross_topology.h:
+ * Implements APIs declared in @c cross_topology.h:
  * - process-aware topology detection (online CPUs + cpuset/affinity constraints),
  * - deterministic CPU selection (single-socket preference, physical-first ordering),
  * - applying CPU affinity to all existing threads (/proc/self/task on Linux),

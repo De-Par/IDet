@@ -29,7 +29,7 @@ namespace idet::algo {
  *  - points are ordered (top-left, top-right, bottom-right, bottom-left)
  *  - polygon is convex (required by quad_iou() exact mode)
  *
- * Engines are responsible for producing consistently ordered quads (or calling @ref order_quad).
+ * Engines are responsible for producing consistently ordered quads (or calling @ref idet::algo::order_quad).
  */
 struct Detection {
     /**
@@ -37,7 +37,7 @@ struct Detection {
      *
      * @details
      * Points are in float pixel coordinates. The semantic ordering is not guaranteed unless
-     * explicitly normalized by @ref order_quad.
+     * explicitly normalized by @ref idet::algo::order_quad.
      */
     idet::Quad pts;
 
@@ -96,7 +96,7 @@ struct QuadIouScratch {
  *  - both quads are convex,
  *  - point order describes the polygon boundary (CW/CCW).
  *
- * If @p use_fast_iou is true, falls back to AABB IoU approximation via @ref aabb_iou.
+ * If @p use_fast_iou is true, falls back to AABB IoU approximation via @ref idet::algo::aabb_iou.
  *
  * @param A First quad (ideally ordered and convex).
  * @param B Second quad (ideally ordered and convex).
@@ -104,8 +104,7 @@ struct QuadIouScratch {
  * @return IoU value in range [0, 1] (returns 0 if union is 0).
  *
  * @note This overload allocates fresh buffers on each call. Prefer the
- * @ref quad_iou(const idet::Quad&, const idet::Quad&, bool, QuadIouScratch&)
- * overload from inner loops (e.g. NMS).
+ * scratch-buffer overload from inner loops (e.g. NMS).
  */
 float quad_iou(const idet::Quad& A, const idet::Quad& B, bool use_fast_iou = false);
 
@@ -128,7 +127,7 @@ float quad_iou(const idet::Quad& A, const idet::Quad& B, bool use_fast_iou, Quad
  * @brief Computes IoU using axis-aligned bounding boxes (AABB) derived from quads.
  *
  * @details
- * This is a cheaper approximation of @ref quad_iou:
+ * This is a cheaper approximation of @ref idet::algo::quad_iou "quad_iou":
  * - each quad is reduced to its min/max X/Y extents (AABB),
  * - IoU is computed for those AABBs.
  *

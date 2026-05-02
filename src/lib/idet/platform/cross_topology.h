@@ -12,7 +12,7 @@
  *   - verify sampled pages of a buffer reside on allowed NUMA nodes (Linux).
  *
  * Correctness notes for OpenMP + ONNX Runtime:
- * - Call @ref apply_process_placement_policy as early as possible:
+ * - Call @c apply_process_placement_policy as early as possible:
  *   before any OpenMP parallel region and before creating ORT sessions (thread pools).
  * - CPU affinity is applied to all currently existing threads; future threads usually inherit it.
  * - On Linux, memory policy is per-thread; apply early and follow first-touch allocation to benefit.
@@ -93,7 +93,7 @@ Topology detect_topology();
 /**
  * @brief Prints a human-readable topology summary (to stdout).
  *
- * @param topology Topology information returned by @ref detect_topology.
+ * @param topology Topology information returned by @c detect_topology.
  */
 void print_topology(const Topology& topology);
 
@@ -117,10 +117,10 @@ void print_topology(const Topology& topology);
  *
  * @param runtime_policy Runtime policy controlling NUMA and related settings.
  * @param desired_threads Desired level of concurrency for which CPUs should be selected and bound.
- * @return @ref idet::Status::Ok() on success, otherwise an error status describing the failure.
+ * @return @c idet::Status::Ok() on success, otherwise an error status describing the failure.
  *
  * @note
- * On non-Linux platforms this is expected to be a no-op and return @ref idet::Status::Ok().
+ * On non-Linux platforms this is expected to be a no-op and return @c idet::Status::Ok().
  */
 idet::Status apply_process_placement_policy(const idet::RuntimePolicy& runtime_policy, std::size_t desired_threads);
 
@@ -129,17 +129,17 @@ idet::Status apply_process_placement_policy(const idet::RuntimePolicy& runtime_p
  *
  * @param allowed_cpus Allowed CPU IDs.
  * @param verbose If true, prints a summary on success and detailed info on errors.
- * @return @ref idet::Status::Ok() if all threads are within the allowed set, otherwise an error status.
+ * @return @c idet::Status::Ok() if all threads are within the allowed set, otherwise an error status.
  */
 idet::Status verify_all_threads_affinity_subset(const std::vector<int>& allowed_cpus, bool verbose = true);
 
 /**
  * @brief Diagnostic: verifies all current threads' affinity is within the current process allowed CPUs.
  *
- * Uses @ref detect_topology().available_cpu_ids (falls back to @ref Topology::all_cpu_ids if empty).
+ * Uses `detect_topology().available_cpu_ids` (falls back to `Topology::all_cpu_ids` if empty).
  *
  * @param verbose If true, prints a summary on success and detailed info on errors.
- * @return @ref idet::Status::Ok() if all threads are within the allowed set, otherwise an error status.
+ * @return @c idet::Status::Ok() if all threads are within the allowed set, otherwise an error status.
  */
 idet::Status verify_all_threads_affinity_subset(bool verbose = true);
 
@@ -151,7 +151,7 @@ idet::Status verify_all_threads_affinity_subset(bool verbose = true);
  * @param allowed_nodes NUMA node IDs considered valid.
  * @param min_ratio Minimum fraction of sampled pages that must be on allowed nodes.
  * @param verbose If true, prints distribution statistics.
- * @return @ref idet::Status::Ok() if the sampled distribution satisfies the constraint, otherwise an error status.
+ * @return @c idet::Status::Ok() if the sampled distribution satisfies the constraint, otherwise an error status.
  */
 idet::Status verify_buffer_pages_on_nodes(void* base, std::size_t bytes, const std::vector<int>& allowed_nodes,
                                           double min_ratio = 0.95, bool verbose = true);
@@ -163,12 +163,12 @@ idet::Status verify_buffer_pages_on_nodes(void* base, std::size_t bytes, const s
  * - allocates @p bytes bytes on heap,
  * - performs a first-touch write pass,
  * - parses allowed nodes from @c /proc/self/status: @c Mems_allowed_list,
- * - calls @ref verify_buffer_pages_on_nodes with that node list.
+ * - calls @c verify_buffer_pages_on_nodes with that node list.
  *
  * @param min_ratio Minimum fraction of sampled pages that must be on allowed nodes.
  * @param verbose If true, prints distribution statistics.
  * @param bytes Buffer size to allocate and test.
- * @return @ref idet::Status::Ok() on success, otherwise an error status.
+ * @return @c idet::Status::Ok() on success, otherwise an error status.
  *
  * @note
  * Useful for quick smoke tests; prefer the explicit overload for production buffers.

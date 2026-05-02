@@ -108,7 +108,7 @@ class ProgressBar {
     /**
      * @brief Sets the current progress to an absolute value
      *
-     * Values greater than @ref max are clamped.
+     * Values greater than the configured maximum are clamped.
      */
     void set(std::size_t value) {
         if (!bar_) return;

@@ -31,28 +31,17 @@
 #pragma once
 
 /**
- * @def IDET_BUILD_STATIC
- * @brief Indicates a static build/usage of the IDet library.
+ * @name Build Selection Macros
+ * @brief Optional build-system macros that select how @ref IDET_API expands.
  *
- * When defined, @c IDET_API expands to nothing because static linking does not require
- * explicit export/import attributes.
- */
-
-/**
- * @def IDET_BUILD_SHARED
- * @brief Indicates that IDet is being built as a shared library.
+ * These symbols are normally provided by Meson or by a downstream consumer:
+ * - @c IDET_BUILD_STATIC: static build/usage, no import/export attribute.
+ * - @c IDET_BUILD_SHARED: compiling the shared library itself, export public symbols.
+ * - @c IDET_USE_SHARED: consuming the shared library, import public symbols where required.
  *
- * Used when compiling the library itself to apply the export attribute
- * (Windows: @c dllexport; ELF: default visibility).
+ * @{
  */
-
-/**
- * @def IDET_USE_SHARED
- * @brief Indicates that IDet is being used as a shared library by a consumer.
- *
- * Used in consumer code to apply the import attribute where applicable
- * (Windows: @c dllimport).
- */
+/** @} */
 
 /**
  * @def IDET_API

@@ -148,7 +148,7 @@ void flip_y_in_place(std::uint8_t* data, int w, int h, int ch) {
 
 } // namespace
 
-/**
+/*
  * @brief Deep-copies pixel data into an Image-owned buffer.
  *
  * @details
@@ -222,7 +222,7 @@ Result<Image> Image::copy_from(PixelFormat fmt, int w, int h, const std::uint8_t
     }
 }
 
-/**
+/*
  * @brief Loads an image from disk and returns it as an @ref idet::Image.
  *
  * @details
@@ -290,7 +290,7 @@ IDET_API Result<Image> load_image(const std::string& path, PixelFormat output_fo
     return Result<Image>::Ok(std::move(img));
 }
 
-/**
+/*
  * @brief Loads an image from disk or throws on failure.
  *
  * @details

@@ -4,7 +4,7 @@
  * @brief Runtime policy application implementation (affinity + OpenMP/OpenCV coordination).
  *
  * @details
- * Implements @ref idet::platform::setup_runtime_policy_impl:
+ * Implements @c idet::platform::setup_runtime_policy_impl:
  * - computes a conservative desired concurrency from ORT intra/inter and tile OpenMP threads,
  * - applies process/thread affinity via @ref idet::platform::apply_process_placement_policy,
  * - optionally prints topology and runs affinity/NUMA diagnostics,
@@ -47,7 +47,7 @@ static inline std::size_t clamp_threads_(int v) noexcept {
 
 } // namespace
 
-/**
+/*
  * @brief Applies process-wide runtime settings for CPU binding, OpenMP, and OpenCV.
  *
  * @details

@@ -7,9 +7,10 @@
  * DBNet-style text detector.
  *
  * Production guarantees:
- * - **Unbound mode** (@ref infer_unbound): allocates temporary buffers per call; safe for concurrent calls.
- * - **Bound mode** (@ref infer_bound): preallocates I/O per context; safe for concurrent calls only if each caller
- *   uses a distinct `ctx_idx`.
+ * - **Unbound mode** (@ref idet::engine::DBNet::infer_unbound): allocates temporary buffers per call; safe for
+ * concurrent calls.
+ * - **Bound mode** (@ref idet::engine::DBNet::infer_bound): preallocates I/O per context; safe for concurrent calls
+ * only if each caller uses a distinct `ctx_idx`.
  * - Output tensor layout is inferred at runtime (NCHW / NHWC / N1HW / HW) and handled without undefined behavior.
  *
  * Expected model contract:
@@ -49,8 +50,9 @@ namespace idet::engine {
  * - postprocessing to produce polygon/quad-like detections.
  *
  * Thread-safety:
- * - @ref infer_unbound is safe for concurrent calls.
- * - @ref infer_bound is safe for concurrent calls only when each thread uses a unique context index.
+ * - @ref idet::engine::DBNet::infer_unbound is safe for concurrent calls.
+ * - @ref idet::engine::DBNet::infer_bound is safe for concurrent calls only when each thread uses a unique context
+ * index.
  */
 class DBNet final : public IEngine {
   public:
@@ -98,19 +100,20 @@ class DBNet final : public IEngine {
     /**
      * @brief Run inference in unbound mode.
      *
-     * @param bgr Input BGR image (CV_8UC3).
+     * @param bgr_view Input BGR image (CV_8UC3).
      * @return Result with detections or error status.
      */
-    Result<std::vector<algo::Detection>> infer_unbound(const internal::BgrImageView& bgr) noexcept override;
+    Result<std::vector<algo::Detection>> infer_unbound(const internal::BgrImageView& bgr_view) noexcept override;
 
     /**
      * @brief Run inference in bound mode using a pre-prepared binding context.
      *
-     * @param bgr Input BGR image (CV_8UC3).
+     * @param bgr_view Input BGR image (CV_8UC3).
      * @param ctx_idx Context index in [0, bound_contexts()).
      * @return Result with detections or error status.
      */
-    Result<std::vector<algo::Detection>> infer_bound(const internal::BgrImageView& bgr, int ctx_idx) noexcept override;
+    Result<std::vector<algo::Detection>> infer_bound(const internal::BgrImageView& bgr_view,
+                                                     int ctx_idx) noexcept override;
 
   private:
     /**

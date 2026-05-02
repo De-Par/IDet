@@ -14,7 +14,7 @@
  *   (e.g. DBNet's @c bin_thresh / @c box_thresh / @c unclip ranges).
  * - A `ctor` hook that allocates and constructs the concrete engine.
  *
- * Adding a new family is therefore one entry in @ref engine_registry() plus the
+ * Adding a new family is therefore one entry in @c engine_registry() plus the
  * corresponding @c IEngine subclass. No changes to this file's dispatch logic, no new
  * @c switch arms, no plumbing in @c idet.cpp's validate() or setup().
  *

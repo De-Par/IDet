@@ -177,7 +177,7 @@ class IEngine {
      * The base class provides helpers @ref check_hot_update_ and @ref apply_hot_common_.
      *
      * @param cfg Proposed new configuration.
-     * @return @ref Status::Ok() on success, otherwise an error status explaining why the update was rejected.
+     * @return @c Status::Ok() on success, otherwise an error status explaining why the update was rejected.
      */
     virtual Status update_hot(const DetectorConfig& cfg) noexcept = 0;
 
@@ -193,7 +193,7 @@ class IEngine {
      * @param w Target input width in pixels (must be > 0).
      * @param h Target input height in pixels (must be > 0).
      * @param contexts Number of contexts to prepare (must be > 0).
-     * @return @ref Status::Ok() on success, error status otherwise.
+     * @return @c Status::Ok() on success, error status otherwise.
      *
      * @note
      * Some engines may internally align dimensions (e.g., to multiples of 32). In that case
@@ -283,7 +283,7 @@ class IEngine {
      * - runtime policy changes may be disallowed.
      *
      * @param next Proposed next configuration.
-     * @return @ref Status::Ok() if hot update is allowed, error status otherwise.
+     * @return @c Status::Ok() if hot update is allowed, error status otherwise.
      */
     Status check_hot_update_(const DetectorConfig& next) const noexcept;
 
@@ -355,7 +355,7 @@ class IEngine {
      *
      * @param model_path Path to an ONNX model file (may be empty if using embedded model).
      * @param engine_kind Engine kind hint for selecting an embedded model (if supported).
-     * @return @ref Status::Ok() on success, error status otherwise.
+     * @return @c Status::Ok() on success, error status otherwise.
      */
     Status create_session_(const std::string& model_path, EngineKind engine_kind = EngineKind::None) noexcept;
 

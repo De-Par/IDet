@@ -4,7 +4,7 @@
  * @brief DBNet-like text detector engine implementation (ORT backend).
  *
  * @details
- * This translation unit implements @ref idet::engine::DBNet:
+ * This translation unit implements @c idet::engine::DBNet:
  * - preprocessing: BGR U8 -> normalized CHW float32 (with optional resize),
  * - inference: ONNX Runtime session execution (unbound or bound via IoBinding),
  * - output handling: layout-aware extraction of an HxW probability plane,
@@ -12,13 +12,13 @@
  *
  * Output layout handling:
  * - The model export may produce probmap as NCHW / NHWC / N1HW / HW. The implementation uses
- *   @ref idet::internal::make_desc_probmap and @ref idet::internal::extract_hw_channel to obtain
+ *   @c idet::internal::make_desc_probmap and @c idet::internal::extract_hw_channel to obtain
  *   a contiguous HxW plane (channel 0 by default).
  *
  * Binding strategy:
  * - Bound mode probes the real output shape once (by a single unbound run with a zero input) to avoid
  *   forcing an assumed shape like {1,1,H,W}.
- * - Each bound context owns its own input/output buffers and @ref Ort::IoBinding instance.
+ * - Each bound context owns its own input/output buffers and @c Ort::IoBinding instance.
  *
  * Thread-safety:
  * - Unbound inference is safe for concurrent calls.

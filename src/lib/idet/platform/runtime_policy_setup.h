@@ -57,7 +57,7 @@ namespace idet::platform {
  * @param policy Runtime policy containing ORT/OpenMP thread counts and affinity hints.
  * @param verbose If true, prints detected topology, applied CPU mask, and verification diagnostics.
  *
- * @return @ref idet::Status::Ok() on success; otherwise a non-OK status with a diagnostic message.
+ * @return @c idet::Status::Ok() on success; otherwise a non-OK status with a diagnostic message.
  *
  * @par Threading contract
  * This function may:

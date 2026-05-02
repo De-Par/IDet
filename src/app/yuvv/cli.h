@@ -13,12 +13,13 @@
 /**
  * @brief Prints CLI usage/help text for the YUV viewer
  *
+ * @param os Output stream.
  * @param argv0 Executable name (typically argv[0]) used in usage output
  */
 void print_usage(std::ostream& os, const char* argv0);
 
 /**
- * @brief Parses CLI arguments into a @ref ViewerConfig structure
+ * @brief Parses CLI arguments into a @ref yuvv::ViewerConfig structure
  *
  * @param argc Standard argument count
  * @param argv Standard argument vector

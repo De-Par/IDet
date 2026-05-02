@@ -219,7 +219,7 @@ template <class T> class Result final {
     /**
      * @brief Constructs a successful result holding a value.
      * @param v Value to store (will be moved).
-     * @return Result containing the value and @ref Status::Ok().
+     * @return Result containing the value and @c Status::Ok().
      */
     static Result Ok(T v) {
         Result r;

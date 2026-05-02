@@ -90,7 +90,7 @@ static inline bool score_before_(const std::vector<algo::Detection>& dets, std::
     return a < b;
 }
 
-/**
+/*
  * @brief Performs Non-Maximum Suppression (NMS) on quadrilateral detections using polygon IoU or AABB IoU.
  *
  * @details
@@ -100,7 +100,7 @@ static inline bool score_before_(const std::vector<algo::Detection>& dets, std::
  * - Suppress any lower-ranked detections whose IoU with the kept detection is >= @p iou_thr_in.
  *
  * Performance optimizations:
- * - Uses AABB overlap as a cheap pre-filter before calling @ref quad_iou.
+ * - Uses AABB overlap as a cheap pre-filter before calling quad IoU.
  * - Uses a uniform grid acceleration for candidate enumeration (CSR layout).
  *   This avoids allocating millions of small vectors.
  * - Uses a stamp + @c seen array to avoid processing the same candidate multiple times
@@ -112,14 +112,12 @@ static inline bool score_before_(const std::vector<algo::Detection>& dets, std::
  *
  * @param dets Input detections.
  * @param iou_thr_in IoU threshold.
- * @param use_fast_iou If true, internally uses AABB IoU approximation via @ref quad_iou(..., true).
+ * @param use_fast_iou If true, internally uses AABB IoU approximation.
  * @return A filtered subset of @p dets after NMS, in descending score order.
  */
-std::vector<algo::Detection> nms_poly(const std::vector<algo::Detection>& dets, float iou_thr_in, bool use_fast_iou) {
+std::vector<algo::Detection> nms_poly(const std::vector<algo::Detection>& dets, float iou_thr, bool use_fast_iou) {
     const std::size_t N = dets.size();
     if (N == 0) return {};
-
-    float iou_thr = iou_thr_in;
 
     // Threshold <= 0: disable suppression, just return detections sorted by score.
     if (iou_thr <= 0.0f) {

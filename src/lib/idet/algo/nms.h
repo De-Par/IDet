@@ -4,7 +4,7 @@
  * @brief Non-maximum suppression (NMS) for quadrilateral detections.
  *
  * @details
- * Implements score-sorted greedy NMS on detections using @ref quad_iou().
+ * Implements score-sorted greedy NMS on detections using @ref idet::algo::quad_iou.
  * Uses an optional uniform grid acceleration (AABB-based) to reduce IoU checks.
  *
  * The IoU backend can be chosen at runtime:
@@ -39,7 +39,7 @@ struct AABB {
  *
  * @param dets Input detections (quad + score).
  * @param iou_thr IoU threshold.
- * @param use_fast_iou If true, uses AABB IoU approximation inside @ref quad_iou.
+ * @param use_fast_iou If true, uses AABB IoU approximation inside @ref idet::algo::quad_iou.
  *
  * @return Filtered detections in descending score order.
  *
