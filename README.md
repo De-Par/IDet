@@ -83,6 +83,7 @@ Detailed documentation is organized into focused, self-contained pages under `do
 | [C++ Integration Guide](docs/integration.md) | Blocking API, hot-loop worker, image lifetime, fixed-shape IOBinding |
 | [Performance Guide](docs/performance.md) | Runtime policy, benchmark output, tuning, IOBinding, tiling and NMS |
 | [Troubleshooting & FAQ](docs/troubleshooting.md) | Common failures, ORT ABI mismatch, FAQ |
+| [Doxygen API Reference](docs/doxygen.md) | Generate and browse local API HTML documentation |
 
 
 ## Quick Start

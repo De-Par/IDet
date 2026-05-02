@@ -32,6 +32,7 @@
 | **CMake** | **≥ 3.18** | Build | 🟡 | Needed only if ONNX Runtime is built from sources / via wrap (depends on ORT version) |
 | **OpenMP runtime** | — | Runtime | 🟡 | Recommended for tiling / parallelism (Linux: often via `libomp-dev` for Clang; MacOS: `libomp`) |
 | **NUMA** | — | Runtime | 🔵 | Optional; Linux-only (multi-socket topology / affinity; typically `libnuma-dev`) |
+| **Doxygen + Graphviz** | — | Docs | 🔵 | Optional; required only for local API HTML generation |
 
 > **Legend:** required (🟢), recommended / conditional (🟡), optional (🔵)
 
@@ -42,7 +43,8 @@
 sudo apt-get update
 sudo apt-get install -y \
     build-essential ninja-build meson pkg-config python3 \
-    python3-pip libopencv-dev libnuma-dev libomp-dev git
+    python3-pip libopencv-dev libnuma-dev libomp-dev git \
+    doxygen graphviz
 ```
 
 
@@ -51,16 +53,15 @@ sudo apt-get install -y \
 ```bash
 brew install \
     meson ninja opencv onnxruntime \
-    libomp cmake python llvm
+    libomp cmake python llvm doxygen graphviz
 ```
 
-> 💡 **Note:**
-> Create a **virtual environment** for tooling in project root directory (optional but recommended):
+> 💡 **Note:** Create a **virtual environment** for tooling in project root directory (optional but recommended).
 
-> ```bash
-> python3 -m venv .venv
-> source .venv/bin/activate
-> pip install -U pip
-> ```
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -U pip
+```
 
 🔝 [Back to top](#requirements)

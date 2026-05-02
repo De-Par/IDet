@@ -73,6 +73,7 @@ Useful scripts:
 | [format_code.sh](../scripts/format_code.sh) | `idet-fmt` | Formats C/C++ project sources in-place |
 | [clang_static_analyzer.sh](../scripts/clang_static_analyzer.sh) | `idet-csa` | Clang static analyzer with soft and hard modes |
 | [include_cleaner.sh](../scripts/include_cleaner.sh) | `idet-inc-clean` | Include directives cleaner util |
+| [generate_doxygen.sh](../scripts/generate_doxygen.sh) | `idet-doxygen` | Generate local Doxygen HTML API reference |
 | [run_idet_text.sh](../scripts/run_idet_text.sh) | `idet-text` | Run text detection on test input data |
 | [run_idet_face.sh](../scripts/run_idet_face.sh) | `idet-face` | Run face detection on test input data |
 | [run_idet_cloth.sh](../scripts/run_idet_cloth.sh) | `idet-cloth` | Run cloth detection on test input data |

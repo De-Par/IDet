@@ -12,5 +12,6 @@
 | [C++ Integration Guide](integration.md) | Blocking API, hot-loop worker, image lifetime, fixed-shape IOBinding |
 | [Performance Guide](performance.md) | Runtime policy, benchmark output, tuning, IOBinding, tiling and NMS |
 | [Troubleshooting & FAQ](troubleshooting.md) | Common failures, ORT ABI mismatch, FAQ |
+| [Doxygen API Reference](doxygen.md) | Generate and browse local API HTML documentation |
 
 🔝 [Back to README](../README.md)
