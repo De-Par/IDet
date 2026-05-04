@@ -35,6 +35,16 @@
     #include <omp.h>
 #endif
 
+#if defined(__ARM_NEON) || defined(__ARM_NEON__)
+    #include <arm_neon.h>
+    #define IDET_CHW_PREPROCESS_HAS_NEON 1
+#endif
+
+#if defined(__SSSE3__) && defined(__SSE4_1__)
+    #include <immintrin.h>
+    #define IDET_CHW_PREPROCESS_HAS_SSE41 1
+#endif
+
 namespace idet::internal {
 
 namespace detail {
@@ -48,6 +58,93 @@ inline void fill_chw_constant_(float* dst_chw, int w, int h, std::uint8_t value,
         const float v = (static_cast<float>(value) - mean[c]) * inv_std[c];
         std::fill(dst_chw + static_cast<std::size_t>(c) * plane, dst_chw + static_cast<std::size_t>(c + 1) * plane, v);
     }
+}
+
+inline void bgr_row_to_chw_scalar_(const std::uint8_t* src, int width, int x0, float* dst_b, float* dst_g, float* dst_r,
+                                   float mean_b, float mean_g, float mean_r, float inv_b, float inv_g,
+                                   float inv_r) noexcept {
+    for (int x = x0; x < width; ++x) {
+        const int x3 = 3 * x;
+        dst_b[x] = (static_cast<float>(src[x3 + 0]) - mean_b) * inv_b;
+        dst_g[x] = (static_cast<float>(src[x3 + 1]) - mean_g) * inv_g;
+        dst_r[x] = (static_cast<float>(src[x3 + 2]) - mean_r) * inv_r;
+    }
+}
+
+#if defined(IDET_CHW_PREPROCESS_HAS_NEON)
+inline void store_u8x8_to_f32_neon_(uint8x8_t v, float* dst, float32x4_t mean, float32x4_t inv_std) noexcept {
+    const uint16x8_t u16 = vmovl_u8(v);
+    const float32x4_t lo = vcvtq_f32_u32(vmovl_u16(vget_low_u16(u16)));
+    const float32x4_t hi = vcvtq_f32_u32(vmovl_u16(vget_high_u16(u16)));
+
+    vst1q_f32(dst + 0, vmulq_f32(vsubq_f32(lo, mean), inv_std));
+    vst1q_f32(dst + 4, vmulq_f32(vsubq_f32(hi, mean), inv_std));
+}
+#endif
+
+#if defined(IDET_CHW_PREPROCESS_HAS_SSE41)
+inline void store_u8x4_to_f32_sse41_(__m128i v, float* dst, __m128 mean, __m128 inv_std) noexcept {
+    const __m128 f = _mm_cvtepi32_ps(_mm_cvtepu8_epi32(v));
+    _mm_storeu_ps(dst, _mm_mul_ps(_mm_sub_ps(f, mean), inv_std));
+}
+#endif
+
+inline int bgr_row_to_chw_simd_(const std::uint8_t* src, int width, float* dst_b, float* dst_g, float* dst_r,
+                                float mean_b, float mean_g, float mean_r, float inv_b, float inv_g,
+                                float inv_r) noexcept {
+#if defined(IDET_CHW_PREPROCESS_HAS_NEON)
+    const float32x4_t mb = vdupq_n_f32(mean_b);
+    const float32x4_t mg = vdupq_n_f32(mean_g);
+    const float32x4_t mr = vdupq_n_f32(mean_r);
+    const float32x4_t sb = vdupq_n_f32(inv_b);
+    const float32x4_t sg = vdupq_n_f32(inv_g);
+    const float32x4_t sr = vdupq_n_f32(inv_r);
+
+    int x = 0;
+    for (; x + 8 <= width; x += 8) {
+        const uint8x8x3_t pix = vld3_u8(src + static_cast<std::ptrdiff_t>(x) * 3);
+        store_u8x8_to_f32_neon_(pix.val[0], dst_b + x, mb, sb);
+        store_u8x8_to_f32_neon_(pix.val[1], dst_g + x, mg, sg);
+        store_u8x8_to_f32_neon_(pix.val[2], dst_r + x, mr, sr);
+    }
+    return x;
+#elif defined(IDET_CHW_PREPROCESS_HAS_SSE41)
+    const __m128 mb = _mm_set1_ps(mean_b);
+    const __m128 mg = _mm_set1_ps(mean_g);
+    const __m128 mr = _mm_set1_ps(mean_r);
+    const __m128 sb = _mm_set1_ps(inv_b);
+    const __m128 sg = _mm_set1_ps(inv_g);
+    const __m128 sr = _mm_set1_ps(inv_r);
+
+    constexpr char z = static_cast<char>(-128);
+    const __m128i bmask = _mm_setr_epi8(0, 3, 6, 9, z, z, z, z, z, z, z, z, z, z, z, z);
+    const __m128i gmask = _mm_setr_epi8(1, 4, 7, 10, z, z, z, z, z, z, z, z, z, z, z, z);
+    const __m128i rmask = _mm_setr_epi8(2, 5, 8, 11, z, z, z, z, z, z, z, z, z, z, z, z);
+
+    int x = 0;
+    // The 16-byte load touches 4 extra bytes after the 4 converted pixels, so keep two
+    // source pixels of headroom and let the scalar tail handle the row end.
+    for (; x + 6 <= width; x += 4) {
+        const __m128i pix = _mm_loadu_si128(reinterpret_cast<const __m128i*>(src + static_cast<std::ptrdiff_t>(x) * 3));
+        store_u8x4_to_f32_sse41_(_mm_shuffle_epi8(pix, bmask), dst_b + x, mb, sb);
+        store_u8x4_to_f32_sse41_(_mm_shuffle_epi8(pix, gmask), dst_g + x, mg, sg);
+        store_u8x4_to_f32_sse41_(_mm_shuffle_epi8(pix, rmask), dst_r + x, mr, sr);
+    }
+    return x;
+#else
+    (void)src;
+    (void)width;
+    (void)dst_b;
+    (void)dst_g;
+    (void)dst_r;
+    (void)mean_b;
+    (void)mean_g;
+    (void)mean_r;
+    (void)inv_b;
+    (void)inv_g;
+    (void)inv_r;
+    return 0;
+#endif
 }
 
 } // namespace detail
@@ -118,12 +215,8 @@ inline void bgr_u8_to_chw_f32_same_size(const BgrImageView& bgr, float* dst_chw,
         float* br = B + row;
         float* gr = G + row;
         float* rr = R + row;
-        for (int x = 0; x < W; ++x) {
-            const int x3 = 3 * x;
-            br[x] = (float(p[x3 + 0]) - mB) * sB;
-            gr[x] = (float(p[x3 + 1]) - mG) * sG;
-            rr[x] = (float(p[x3 + 2]) - mR) * sR;
-        }
+        const int x0 = detail::bgr_row_to_chw_simd_(p, W, br, gr, rr, mB, mG, mR, sB, sG, sR);
+        detail::bgr_row_to_chw_scalar_(p, W, x0, br, gr, rr, mB, mG, mR, sB, sG, sR);
     }
     (void)parallel; // silence unused-var when _OPENMP is not defined
 }
@@ -198,12 +291,10 @@ inline LetterboxInfo bgr_u8_to_chw_f32_letterbox(const BgrImageView& bgr, int ds
             float* br = B + row;
             float* gr = G + row;
             float* rr = R + row;
-            for (int x = 0; x < rw; ++x) {
-                const int x3 = 3 * x;
-                br[x] = (static_cast<float>(p[x3 + 0]) - mean[0]) * inv_std[0];
-                gr[x] = (static_cast<float>(p[x3 + 1]) - mean[1]) * inv_std[1];
-                rr[x] = (static_cast<float>(p[x3 + 2]) - mean[2]) * inv_std[2];
-            }
+            const int x0 = detail::bgr_row_to_chw_simd_(p, rw, br, gr, rr, mean[0], mean[1], mean[2], inv_std[0],
+                                                        inv_std[1], inv_std[2]);
+            detail::bgr_row_to_chw_scalar_(p, rw, x0, br, gr, rr, mean[0], mean[1], mean[2], inv_std[0], inv_std[1],
+                                           inv_std[2]);
         }
         return info;
     }
