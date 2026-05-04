@@ -45,6 +45,19 @@
     #include <omp.h>
 #endif
 
+#if defined(__ARM_NEON) || defined(__ARM_NEON__)
+    #include <arm_neon.h>
+    #define IDET_DBNET_HAS_NEON 1
+#endif
+
+#if defined(__AVX__)
+    #include <immintrin.h>
+    #define IDET_DBNET_HAS_AVX 1
+#elif defined(__SSE__)
+    #include <immintrin.h>
+    #define IDET_DBNET_HAS_SSE 1
+#endif
+
 namespace idet::engine {
 
 namespace {
@@ -75,6 +88,62 @@ static inline float sigmoid_(float x) noexcept {
  */
 static inline float clampf_(float v, float lo, float hi) noexcept {
     return std::max(lo, std::min(hi, v));
+}
+
+static inline void binarize_gt_scalar_(const float* src, std::uint8_t* dst, int n, int start, float thr) noexcept {
+    for (int i = start; i < n; ++i)
+        dst[i] = (src[i] > thr) ? 1U : 0U;
+}
+
+static inline int binarize_gt_simd_(const float* src, std::uint8_t* dst, int n, float thr) noexcept {
+#if defined(IDET_DBNET_HAS_NEON)
+    const float32x4_t t = vdupq_n_f32(thr);
+    int i = 0;
+    for (; i + 16 <= n; i += 16) {
+        const uint32x4_t m0 = vshrq_n_u32(vcgtq_f32(vld1q_f32(src + i + 0), t), 31);
+        const uint32x4_t m1 = vshrq_n_u32(vcgtq_f32(vld1q_f32(src + i + 4), t), 31);
+        const uint32x4_t m2 = vshrq_n_u32(vcgtq_f32(vld1q_f32(src + i + 8), t), 31);
+        const uint32x4_t m3 = vshrq_n_u32(vcgtq_f32(vld1q_f32(src + i + 12), t), 31);
+
+        const uint16x8_t lo16 = vcombine_u16(vmovn_u32(m0), vmovn_u32(m1));
+        const uint16x8_t hi16 = vcombine_u16(vmovn_u32(m2), vmovn_u32(m3));
+        vst1_u8(dst + i + 0, vmovn_u16(lo16));
+        vst1_u8(dst + i + 8, vmovn_u16(hi16));
+    }
+    return i;
+#elif defined(IDET_DBNET_HAS_AVX)
+    const __m256 t = _mm256_set1_ps(thr);
+    int i = 0;
+    for (; i + 8 <= n; i += 8) {
+        const int mask = _mm256_movemask_ps(_mm256_cmp_ps(_mm256_loadu_ps(src + i), t, _CMP_GT_OQ));
+        dst[i + 0] = static_cast<std::uint8_t>((mask >> 0) & 1);
+        dst[i + 1] = static_cast<std::uint8_t>((mask >> 1) & 1);
+        dst[i + 2] = static_cast<std::uint8_t>((mask >> 2) & 1);
+        dst[i + 3] = static_cast<std::uint8_t>((mask >> 3) & 1);
+        dst[i + 4] = static_cast<std::uint8_t>((mask >> 4) & 1);
+        dst[i + 5] = static_cast<std::uint8_t>((mask >> 5) & 1);
+        dst[i + 6] = static_cast<std::uint8_t>((mask >> 6) & 1);
+        dst[i + 7] = static_cast<std::uint8_t>((mask >> 7) & 1);
+    }
+    return i;
+#elif defined(IDET_DBNET_HAS_SSE)
+    const __m128 t = _mm_set1_ps(thr);
+    int i = 0;
+    for (; i + 4 <= n; i += 4) {
+        const int mask = _mm_movemask_ps(_mm_cmpgt_ps(_mm_loadu_ps(src + i), t));
+        dst[i + 0] = static_cast<std::uint8_t>((mask >> 0) & 1);
+        dst[i + 1] = static_cast<std::uint8_t>((mask >> 1) & 1);
+        dst[i + 2] = static_cast<std::uint8_t>((mask >> 2) & 1);
+        dst[i + 3] = static_cast<std::uint8_t>((mask >> 3) & 1);
+    }
+    return i;
+#else
+    (void)src;
+    (void)dst;
+    (void)n;
+    (void)thr;
+    return 0;
+#endif
 }
 
 struct PixelI {
@@ -475,10 +544,8 @@ std::vector<algo::Detection> DBNet::postprocess_hw_(const float* prob_hw, int ou
 #endif
         for (int y = 0; y < out_h; ++y) {
             const std::size_t row = static_cast<std::size_t>(y) * static_cast<std::size_t>(out_w);
-            for (int x = 0; x < out_w; ++x) {
-                const std::size_t idx = row + static_cast<std::size_t>(x);
-                bitmap[idx] = (prob_hw[idx] > thr) ? 1U : 0U;
-            }
+            const int x0 = binarize_gt_simd_(prob_hw + row, bitmap.data() + row, out_w, thr);
+            binarize_gt_scalar_(prob_hw + row, bitmap.data() + row, out_w, x0, thr);
         }
     }
 
