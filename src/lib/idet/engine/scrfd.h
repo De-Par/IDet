@@ -35,7 +35,7 @@
 #pragma once
 
 #include "engine/engine.h"
-#include "internal/letterbox.h"
+#include "internal/letterbox_info.h"
 #include "internal/ort_tensor.h"
 
 #include <cstddef>
@@ -134,7 +134,7 @@ class SCRFD final : public IEngine {
     /**
      * @brief Run inference in unbound mode (per-call allocations).
      *
-     * @param bgr_view Input image in BGR format (CV_8UC3).
+     * @param bgr_view Input BGR_U8 image view.
      * @return Detections in original image coordinates or an error status.
      */
     Result<std::vector<algo::Detection>> infer_unbound(const internal::BgrImageView& bgr_view) noexcept override;
@@ -142,7 +142,7 @@ class SCRFD final : public IEngine {
     /**
      * @brief Run inference in bound mode using a prepared binding context.
      *
-     * @param bgr_view Input image in BGR format (CV_8UC3).
+     * @param bgr_view Input BGR_U8 image view.
      * @param ctx_idx Index of binding context in [0, bound_contexts()).
      * @return Detections in original image coordinates or an error status.
      *
@@ -252,10 +252,11 @@ class SCRFD final : public IEngine {
      * @param dst Destination CHW buffer (size = 3 * in_h * in_w).
      * @param in_w Effective input width.
      * @param in_h Effective input height.
-     * @param bgr Source image (CV_8UC3).
+     * @param bgr Source BGR_U8 image view.
      * @return Letterbox geometry used to map decoded boxes back to original image space.
      */
-    idet::internal::LetterboxInfo fill_input_chw_(float* dst, int in_w, int in_h, const cv::Mat& bgr) const;
+    idet::internal::LetterboxInfo fill_input_chw_(float* dst, int in_w, int in_h,
+                                                  const internal::BgrImageView& bgr) const;
 
     /**
      * @brief Run ORT in unbound mode and return all model outputs.
@@ -271,7 +272,7 @@ class SCRFD final : public IEngine {
      * @param in_w Output: effective preprocessed width.
      * @param in_h Output: effective preprocessed height.
      */
-    Result<std::vector<Ort::Value>> run_unbound_(const cv::Mat& bgr, int force_w, int force_h,
+    Result<std::vector<Ort::Value>> run_unbound_(const internal::BgrImageView& bgr, int force_w, int force_h,
                                                  idet::internal::LetterboxInfo& lb, int& in_w, int& in_h) noexcept;
 
     /** @brief Stable sigmoid helper for score decoding. */

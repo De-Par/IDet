@@ -7,8 +7,6 @@
 #endif
 
 #include "algo/geometry.h"
-#include "internal/opencv_adapter.h"
-#include "internal/opencv_geometry.h"
 
 #include <algorithm>
 #include <array>
@@ -135,26 +133,29 @@ static idet::Quad random_convex_quad(std::mt19937& rng) {
 }
 
 static inline bool in_unit_interval_soft(float v) noexcept {
-    // numerical tolerance: OpenCV intersection area computations can produce tiny eps deviations
+    // numerical tolerance: polygon clipping can produce tiny eps deviations near boundaries.
     return std::isfinite(v) && v >= -1e-4f && v <= 1.0f + 1e-4f;
 }
 
 static inline bool to_strict_convex_quad_cw(const idet::Quad& in, idet::Quad& out) {
-    const auto cv_in = idet::internal::opencv_adapter::to_cv_quad(in);
-    std::array<cv::Point2f, 4> pts{};
-    for (std::size_t i = 0; i < pts.size(); ++i)
-        pts[i] = cv_in[i];
+    out = in;
+    idet::algo::order_quad(out.data());
 
-    cv::Mat pts_mat(static_cast<int>(pts.size()), 1, CV_32FC2, pts.data());
-    cv::Mat hull;
-    cv::convexHull(pts_mat, hull, /*clockwise=*/true, /*returnPoints=*/true);
-
-    if (hull.total() != 4) return false;
-    if (std::abs(cv::contourArea(hull)) < 1e-2) return false;
-
-    const auto* hull_pts = hull.ptr<cv::Point2f>();
+    float area2 = 0.0f;
     for (int i = 0; i < 4; ++i)
-        out[i] = idet::internal::opencv_adapter::from_cv(hull_pts[i]);
+        area2 += out[i].x * out[(i + 1) & 3].y - out[(i + 1) & 3].x * out[i].y;
+    if (std::abs(area2) < 1e-2f) return false;
+
+    float sign = 0.0f;
+    for (int i = 0; i < 4; ++i) {
+        const auto& a = out[i];
+        const auto& b = out[(i + 1) & 3];
+        const auto& c = out[(i + 2) & 3];
+        const float cr = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+        if (std::abs(cr) < 1e-4f) return false;
+        if (sign == 0.0f) sign = cr;
+        if (sign * cr <= 0.0f) return false;
+    }
     return true;
 }
 
@@ -370,43 +371,6 @@ TEST(Geometry, OrderQuad_WithInf_DoesNotCreateExtraNonFinite) {
     EXPECT_EQ(count_nan_any(q), nan0);
     EXPECT_EQ(count_inf_any(q), inf0);
     EXPECT_EQ(count_finite(q), fin0);
-}
-
-// ------------------------------- contour_score --------------------------------
-
-TEST(Geometry, ContourScore_EmptyContour_IsZero) {
-    cv::Mat prob(10, 10, CV_32F, cv::Scalar(0.5f));
-    std::vector<cv::Point> contour;
-    EXPECT_FLOAT_EQ(idet::internal::opencv_geometry::contour_score(prob, contour), 0.f);
-}
-
-TEST(Geometry, ContourScore_Rect_EqualsMeanUnderMask) {
-    const int W = 8, H = 6;
-    cv::Mat prob(H, W, CV_32F);
-    for (int y = 0; y < H; ++y) {
-        for (int x = 0; x < W; ++x) {
-            prob.at<float>(y, x) = float(x + 10 * y);
-        }
-    }
-    std::vector<cv::Point> contour = {{2, 1}, {5, 1}, {5, 4}, {2, 4}};
-
-    cv::Mat mask(H, W, CV_8U, cv::Scalar(0));
-    std::vector<std::vector<cv::Point>> cnt(1);
-    cnt[0] = contour;
-    cv::drawContours(mask, cnt, 0, cv::Scalar(255), cv::FILLED);
-
-    const float ref = (float)cv::mean(prob, mask)[0];
-    const float got = idet::internal::opencv_geometry::contour_score(prob, contour);
-
-    EXPECT_NEAR(got, ref, 1e-6f);
-}
-
-TEST(Geometry, ContourScore_ContourOutsideBounds_DoesNotCrash_Finite) {
-    cv::Mat prob(10, 10, CV_32F, cv::Scalar(0.2f));
-    std::vector<cv::Point> contour = {{-100, -100}, {20, -100}, {20, 20}, {-100, 20}};
-    const float got = idet::internal::opencv_geometry::contour_score(prob, contour);
-    EXPECT_TRUE(std::isfinite(got));
-    EXPECT_GE(got, 0.f);
 }
 
 // ------------------------------- aabb_iou ------------------------------------

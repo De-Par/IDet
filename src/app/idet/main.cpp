@@ -5,6 +5,24 @@
 #include <idet.h>
 #include <iostream>
 
+#if defined(__has_include) && __has_include(<opencv4/opencv2/core.hpp>)
+    #include <opencv4/opencv2/core.hpp>
+#elif defined(__has_include) && __has_include(<opencv2/core.hpp>)
+    #include <opencv2/core.hpp>
+#else
+    #error "[ERROR] OpenCV 'core.hpp' header not found"
+#endif
+
+namespace {
+
+void apply_app_opencv_policy(const idet::RuntimePolicy& policy) {
+    if (!policy.suppress_opencv) return;
+    cv::setUseOptimized(true);
+    cv::setNumThreads(1);
+}
+
+} // namespace
+
 int main(int argc, char** argv) {
     try {
         // Create timer
@@ -28,6 +46,7 @@ int main(int argc, char** argv) {
                 std::cerr << "[ERROR] Failed to setup runtime policy: " << rp_res.message << "\n";
                 return 1;
             }
+            apply_app_opencv_policy(det_config.runtime);
         }
 
         // Create detector

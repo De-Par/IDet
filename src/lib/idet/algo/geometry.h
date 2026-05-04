@@ -92,9 +92,8 @@ struct QuadIouScratch {
  * @brief IoU of two quadrilaterals.
  *
  * @details
- * Exact mode uses @c cv::intersectConvexConvex and requires:
- *  - both quads are convex,
- *  - point order describes the polygon boundary (CW/CCW).
+ * Exact mode computes convex hulls for both quads and clips them with Sutherland-Hodgman
+ * polygon clipping. No external geometry backend is required.
  *
  * If @p use_fast_iou is true, falls back to AABB IoU approximation via @ref idet::algo::aabb_iou.
  *

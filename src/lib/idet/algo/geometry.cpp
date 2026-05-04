@@ -1,14 +1,13 @@
 /**
  * @file geometry.cpp
  * @ingroup idet_algo
- * @brief Implementations for quad ordering, contour scoring, IoU, and aspect-fit helpers.
+ * @brief Implementations for quad ordering, IoU, and aspect-fit helpers.
  *
  * @details
  * Implements:
  *  - order_quad(): robust canonical ordering TL,TR,BR,BL with fallbacks for degenerate input,
- *  - contour_score(): mean probability inside a contour using a masked ROI (optional caller-provided scratch buffers),
  *  - aabb_iou(): fast axis-aligned IoU approximation from quad extents,
- *  - quad_iou(): exact convex IoU via OpenCV (or AABB approximation when USE_FAST_IOU=1),
+ *  - quad_iou(): exact convex IoU via polygon clipping (or AABB approximation when USE_FAST_IOU=1),
  *  - aspect_fit32(): aspect-ratio fit to a square side + 32-alignment.
  *
  * Notes:
@@ -18,23 +17,21 @@
 
 #include "algo/geometry.h"
 
-#include "internal/opencv_adapter.h"
-#include "internal/opencv_geometry.h"
-
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <limits>
 #include <utility>
 #include <vector>
 
 namespace idet::algo {
 
 struct QuadIouScratch::Impl {
-    std::array<cv::Point2f, 4> pts{};
-    cv::Mat a;
-    cv::Mat b;
-    cv::Mat inter;
+    std::vector<idet::Point2f> a;
+    std::vector<idet::Point2f> b;
+    std::vector<idet::Point2f> tmp;
+    std::vector<idet::Point2f> inter;
 };
 
 QuadIouScratch::QuadIouScratch() : impl(std::make_unique<Impl>()) {}
@@ -234,63 +231,133 @@ void order_quad(idet::Point2f quad[4]) noexcept {
     quad[3] = t[3];
 }
 
-} // namespace idet::algo
+namespace {
 
-namespace idet::internal::opencv_geometry {
-
-float contour_score(const cv::Mat& prob, const std::vector<cv::Point>& contour, ContourScoreScratch& scratch) {
-    if (contour.empty()) return 0.f;
-
-    cv::Rect bbox = cv::boundingRect(contour) & cv::Rect(0, 0, prob.cols, prob.rows);
-    if (bbox.empty()) return 0.f;
-
-    // Reuse a single full-size mask buffer across calls. We re-create only when the size or type
-    // doesn't match (typically only on the first call per detector run). The reused buffer is
-    // cleared lazily — only inside the bbox ROI for this contour — so previous draws outside the
-    // current bbox are irrelevant.
-    if (scratch.mask_full.rows != prob.rows || scratch.mask_full.cols != prob.cols ||
-        scratch.mask_full.type() != CV_8U) {
-        scratch.mask_full.create(prob.rows, prob.cols, CV_8U);
-    }
-    cv::Mat mask_roi = scratch.mask_full(bbox);
-    mask_roi.setTo(cv::Scalar(0));
-
-    if (scratch.cnt.empty()) scratch.cnt.resize(1);
-    auto& cnt0 = scratch.cnt[0];
-    cnt0.clear();
-    cnt0.reserve(contour.size());
-
-    for (const auto& p_orig : contour) {
-        cv::Point p = p_orig;
-
-        if (p.x < bbox.x)
-            p.x = bbox.x;
-        else if (p.x >= bbox.x + bbox.width)
-            p.x = bbox.x + bbox.width - 1;
-
-        if (p.y < bbox.y)
-            p.y = bbox.y;
-        else if (p.y >= bbox.y + bbox.height)
-            p.y = bbox.y + bbox.height - 1;
-
-        cnt0.push_back(p - bbox.tl());
-    }
-
-    cv::drawContours(mask_roi, scratch.cnt, 0, cv::Scalar(255), cv::FILLED);
-    cv::Mat roi = prob(bbox);
-    cv::Scalar m = cv::mean(roi, mask_roi);
-    return static_cast<float>(m[0]);
+static inline bool finite_pt_(const idet::Point2f& p) noexcept {
+    return std::isfinite(p.x) && std::isfinite(p.y);
 }
 
-float contour_score(const cv::Mat& prob, const std::vector<cv::Point>& contour) {
-    // Backwards-compatible overload: allocate scratch on the stack/heap per call.
-    ContourScoreScratch scratch;
-    return contour_score(prob, contour, scratch);
+static inline float cross_(const idet::Point2f& a, const idet::Point2f& b, const idet::Point2f& c) noexcept {
+    const float abx = b.x - a.x;
+    const float aby = b.y - a.y;
+    const float acx = c.x - a.x;
+    const float acy = c.y - a.y;
+    return abx * acy - aby * acx;
 }
 
-} // namespace idet::internal::opencv_geometry
+static double polygon_area_signed_(const std::vector<idet::Point2f>& poly) noexcept {
+    const std::size_t n = poly.size();
+    if (n < 3) return 0.0;
 
-namespace idet::algo {
+    double a = 0.0;
+    for (std::size_t i = 0; i < n; ++i) {
+        const auto& p = poly[i];
+        const auto& q = poly[(i + 1U) % n];
+        a += static_cast<double>(p.x) * static_cast<double>(q.y) - static_cast<double>(q.x) * static_cast<double>(p.y);
+    }
+    return 0.5 * a;
+}
+
+static inline float polygon_area_(const std::vector<idet::Point2f>& poly) noexcept {
+    const double a = std::fabs(polygon_area_signed_(poly));
+    if (!std::isfinite(a) || a <= 0.0) return 0.0f;
+    return static_cast<float>(a);
+}
+
+static bool make_convex_hull_(const idet::Quad& q, std::vector<idet::Point2f>& hull) {
+    hull.clear();
+
+    std::array<idet::Point2f, 4> pts{};
+    std::size_t n = 0;
+    for (const auto& p : q) {
+        if (!finite_pt_(p)) return false;
+        pts[n++] = p;
+    }
+
+    std::sort(pts.begin(), pts.end(), [](const auto& a, const auto& b) {
+        if (a.x != b.x) return a.x < b.x;
+        return a.y < b.y;
+    });
+
+    std::array<idet::Point2f, 4> uniq{};
+    std::size_t m = 0;
+    for (const auto& p : pts) {
+        if (m == 0 || std::fabs(p.x - uniq[m - 1].x) > 1e-6f || std::fabs(p.y - uniq[m - 1].y) > 1e-6f) {
+            uniq[m++] = p;
+        }
+    }
+    if (m < 3) return false;
+
+    std::array<idet::Point2f, 8> tmp{};
+    std::size_t k = 0;
+    for (std::size_t i = 0; i < m; ++i) {
+        while (k >= 2 && cross_(tmp[k - 2], tmp[k - 1], uniq[i]) <= 1e-7f)
+            --k;
+        tmp[k++] = uniq[i];
+    }
+    const std::size_t lower = k;
+    for (std::size_t ii = m - 1; ii > 0; --ii) {
+        const auto& p = uniq[ii - 1];
+        while (k > lower && cross_(tmp[k - 2], tmp[k - 1], p) <= 1e-7f)
+            --k;
+        tmp[k++] = p;
+    }
+    if (k > 1) --k; // remove duplicate first point
+    if (k < 3) return false;
+
+    hull.assign(tmp.begin(), tmp.begin() + static_cast<std::ptrdiff_t>(k));
+    return polygon_area_(hull) > 1e-7f;
+}
+
+static inline bool inside_ccw_edge_(const idet::Point2f& a, const idet::Point2f& b, const idet::Point2f& p) noexcept {
+    return cross_(a, b, p) >= -1e-5f;
+}
+
+static idet::Point2f line_intersection_(const idet::Point2f& s, const idet::Point2f& e, const idet::Point2f& a,
+                                        const idet::Point2f& b) noexcept {
+    const idet::Point2f r{e.x - s.x, e.y - s.y};
+    const idet::Point2f edge{b.x - a.x, b.y - a.y};
+    const float denom = r.x * edge.y - r.y * edge.x;
+    if (std::fabs(denom) <= 1e-12f) return e;
+
+    const idet::Point2f q{s.x - a.x, s.y - a.y};
+    const float t = (edge.x * q.y - edge.y * q.x) / denom;
+    return {s.x + t * r.x, s.y + t * r.y};
+}
+
+static void clip_convex_(const std::vector<idet::Point2f>& subject, const std::vector<idet::Point2f>& clip,
+                         std::vector<idet::Point2f>& out, std::vector<idet::Point2f>& tmp) {
+    out = subject;
+
+    for (std::size_t ci = 0; ci < clip.size() && !out.empty(); ++ci) {
+        const idet::Point2f a = clip[ci];
+        const idet::Point2f b = clip[(ci + 1U) % clip.size()];
+
+        tmp.clear();
+        tmp.reserve(out.size() + clip.size());
+
+        idet::Point2f s = out.back();
+        bool s_inside = inside_ccw_edge_(a, b, s);
+
+        for (const auto& e : out) {
+            const bool e_inside = inside_ccw_edge_(a, b, e);
+
+            if (e_inside) {
+                if (!s_inside) tmp.push_back(line_intersection_(s, e, a, b));
+                tmp.push_back(e);
+            } else if (s_inside) {
+                tmp.push_back(line_intersection_(s, e, a, b));
+            }
+
+            s = e;
+            s_inside = e_inside;
+        }
+
+        out.swap(tmp);
+    }
+}
+
+} // namespace
 
 float aabb_iou(const idet::Quad& A, const idet::Quad& B) {
     auto is_finite = [](const idet::Point2f& p) noexcept { return std::isfinite(p.x) && std::isfinite(p.y); };
@@ -337,38 +404,21 @@ float aabb_iou(const idet::Quad& A, const idet::Quad& B) {
 float quad_iou(const idet::Quad& A, const idet::Quad& B, bool use_fast_iou, QuadIouScratch& scratch) {
     if (use_fast_iou) return aabb_iou(A, B);
 
-    auto is_finite = [](const idet::Point2f& p) noexcept { return std::isfinite(p.x) && std::isfinite(p.y); };
+    auto& poly_a = scratch.impl->a;
+    auto& poly_b = scratch.impl->b;
+    auto& tmp = scratch.impl->tmp;
+    auto& inter = scratch.impl->inter;
 
-    for (std::size_t i = 0; i < A.size(); ++i) {
-        if (!is_finite(A[i]) || !is_finite(B[i])) return 0.f;
-    }
+    if (!make_convex_hull_(A, poly_a) || !make_convex_hull_(B, poly_b)) return 0.f;
 
-    auto& cv_a = scratch.impl->a;
-    auto& cv_b = scratch.impl->b;
-    auto& cv_inter = scratch.impl->inter;
-    auto& cv_pts = scratch.impl->pts;
-    cv_inter.release();
-
-    auto make_hull = [&](const idet::Quad& q, cv::Mat& hull) -> bool {
-        for (std::size_t i = 0; i < q.size(); ++i)
-            cv_pts[i] = idet::internal::opencv_adapter::to_cv(q[i]);
-
-        cv::Mat pts_mat(static_cast<int>(cv_pts.size()), 1, CV_32FC2, cv_pts.data());
-        cv::convexHull(pts_mat, hull, /*clockwise=*/true, /*returnPoints=*/true);
-
-        if (hull.total() < 3) return false;
-        const double area = std::abs(cv::contourArea(hull));
-        return area > 1e-9;
-    };
-
-    if (!make_hull(A, cv_a) || !make_hull(B, cv_b)) return 0.f;
-
-    float inter_area = (float)cv::intersectConvexConvex(cv_a, cv_b, cv_inter, /*handleNested=*/true);
-    if (!(inter_area > 0.f) || !std::isfinite(inter_area)) return 0.f;
-
-    const float areaA = (float)std::abs(cv::contourArea(cv_a));
-    const float areaB = (float)std::abs(cv::contourArea(cv_b));
+    const float areaA = polygon_area_(poly_a);
+    const float areaB = polygon_area_(poly_b);
     if (!(areaA > 0.f) || !(areaB > 0.f)) return 0.f;
+
+    clip_convex_(poly_a, poly_b, inter, tmp);
+
+    float inter_area = polygon_area_(inter);
+    if (!(inter_area > 0.f) || !std::isfinite(inter_area)) return 0.f;
 
     const float cap = std::min(areaA, areaB);
     if (inter_area > cap) inter_area = cap;

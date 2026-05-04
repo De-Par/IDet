@@ -25,11 +25,10 @@
 #include "engine/scrfd.h"
 
 #include "internal/chw_preprocess.h"
-#include "internal/letterbox.h"
-#include "internal/opencv_adapter.h"
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <exception>
 #include <limits>
 #include <new>
@@ -170,18 +169,16 @@ algo::Detection SCRFD::rect_to_det_(float x1, float y1, float x2, float y2, floa
  *
  * @param dst Destination buffer in CHW order (size = 3 * in_h * in_w).
  * @param in_w/in_h Target network input dimensions (already aligned if needed).
- * @param bgr Source image in BGR order (CV_8UC3).
+ * @param bgr Source BGR_U8 image view.
  * @return Letterbox geometry used by the decode side to invert the transform.
  */
-idet::internal::LetterboxInfo SCRFD::fill_input_chw_(float* dst, int in_w, int in_h, const cv::Mat& bgr) const {
+idet::internal::LetterboxInfo SCRFD::fill_input_chw_(float* dst, int in_w, int in_h,
+                                                     const internal::BgrImageView& bgr) const {
     // SCRFD: (x - 127.5) / 128
     const float mean[3] = {127.5f, 127.5f, 127.5f};
     const float inv_std[3] = {1.0f / 128.0f, 1.0f / 128.0f, 1.0f / 128.0f};
 
-    cv::Mat lb_img;
-    auto info = internal::letterbox_bgr(bgr, lb_img, in_w, in_h, /*pad_value=*/0);
-    internal::bgr_u8_to_chw_f32_same_size(lb_img, dst, mean, inv_std);
-    return info;
+    return internal::bgr_u8_to_chw_f32_letterbox(bgr, in_w, in_h, /*pad_value=*/0, dst, mean, inv_std);
 }
 
 /**
@@ -197,21 +194,21 @@ idet::internal::LetterboxInfo SCRFD::fill_input_chw_(float* dst, int in_w, int i
  * - sx = in_w / orig_w, sy = in_h / orig_h are returned to map decoded boxes back
  *   to original image coordinates in @ref decode_.
  *
- * @param bgr Input image (BGR, CV_8UC3).
+ * @param bgr Input BGR_U8 image view.
  * @param force_w/force_h If both > 0, force a fixed input shape (still aligned to 32).
  * @param sx/sy Output scale factors (network / original).
  * @param in_w/in_h Output effective network input shape.
  * @return Vector of Ort::Value outputs in the same order as @ref out_names_.
  */
-Result<std::vector<Ort::Value>> SCRFD::run_unbound_(const cv::Mat& bgr, int force_w, int force_h,
+Result<std::vector<Ort::Value>> SCRFD::run_unbound_(const internal::BgrImageView& bgr, int force_w, int force_h,
                                                     idet::internal::LetterboxInfo& lb, int& in_w, int& in_h) noexcept {
     try {
-        if (bgr.empty() || bgr.type() != CV_8UC3) {
-            return Result<std::vector<Ort::Value>>::Err(Status::Invalid("SCRFD: run_unbound expects CV_8UC3 BGR"));
+        if (!bgr.is_valid()) {
+            return Result<std::vector<Ort::Value>>::Err(Status::Invalid("SCRFD: run_unbound expects valid BGR view"));
         }
 
-        const int ow = bgr.cols;
-        const int oh = bgr.rows;
+        const int ow = bgr.width;
+        const int oh = bgr.height;
 
         int tw = force_w;
         int th = force_h;
@@ -282,11 +279,12 @@ Result<std::vector<Ort::Value>> SCRFD::run_unbound_(const cv::Mat& bgr, int forc
  */
 Status SCRFD::probe_heads_layout_(int in_h, int in_w, std::vector<Head>* heads) noexcept {
     try {
-        cv::Mat dummy(in_h, in_w, CV_8UC3, cv::Scalar(0, 0, 0));
+        std::vector<std::uint8_t> dummy(static_cast<std::size_t>(in_w) * static_cast<std::size_t>(in_h) * 3U, 0);
+        const internal::BgrImageView dummy_view{dummy.data(), in_w, in_h, static_cast<std::ptrdiff_t>(in_w) * 3};
 
         idet::internal::LetterboxInfo lb;
         int iw = 0, ih = 0;
-        auto r = run_unbound_(dummy, in_w, in_h, lb, iw, ih);
+        auto r = run_unbound_(dummy_view, in_w, in_h, lb, iw, ih);
         (void)lb;
         if (!r.ok()) return r.status();
 
@@ -666,15 +664,14 @@ void SCRFD::unset_binding() noexcept {
  */
 Result<std::vector<algo::Detection>> SCRFD::infer_unbound(const internal::BgrImageView& bgr_view) noexcept {
     try {
-        const cv::Mat bgr = internal::opencv_adapter::wrap_bgr_view(bgr_view);
-        if (bgr.empty() || bgr.type() != CV_8UC3) {
+        if (!bgr_view.is_valid()) {
             return Result<std::vector<algo::Detection>>::Err(
                 Status::Invalid("SCRFD::infer_unbound: expected valid BGR view"));
         }
 
         idet::internal::LetterboxInfo lb;
         int in_w = 0, in_h = 0;
-        auto rr = run_unbound_(bgr, 0, 0, lb, in_w, in_h);
+        auto rr = run_unbound_(bgr_view, 0, 0, lb, in_w, in_h);
         if (!rr.ok()) return Result<std::vector<algo::Detection>>::Err(rr.status());
 
         auto outs = std::move(rr.value());
@@ -700,7 +697,7 @@ Result<std::vector<algo::Detection>> SCRFD::infer_unbound(const internal::BgrIma
             bbox_ptrs[hi] = outs[(std::size_t)hd.bbox_idx].GetTensorData<float>();
         }
 
-        auto dets = decode_(heads_, score_ptrs, bbox_ptrs, lb, bgr.cols, bgr.rows);
+        auto dets = decode_(heads_, score_ptrs, bbox_ptrs, lb, bgr_view.width, bgr_view.height);
         return Result<std::vector<algo::Detection>>::Ok(std::move(dets));
     } catch (const std::bad_alloc&) {
         return Result<std::vector<algo::Detection>>::Err(Status::OutOfMemory("SCRFD::infer_unbound: bad_alloc"));
@@ -724,13 +721,12 @@ Result<std::vector<algo::Detection>> SCRFD::infer_unbound(const internal::BgrIma
  */
 Result<std::vector<algo::Detection>> SCRFD::infer_bound(const internal::BgrImageView& bgr_view, int ctx_idx) noexcept {
     try {
-        const cv::Mat bgr = internal::opencv_adapter::wrap_bgr_view(bgr_view);
         if (!binding_ready_)
             return Result<std::vector<algo::Detection>>::Err(Status::Invalid("SCRFD::infer_bound: binding not ready"));
         if (ctx_idx < 0 || ctx_idx >= contexts_)
             return Result<std::vector<algo::Detection>>::Err(
                 Status::Invalid("SCRFD::infer_bound: ctx_idx out of range"));
-        if (bgr.empty() || bgr.type() != CV_8UC3)
+        if (!bgr_view.is_valid())
             return Result<std::vector<algo::Detection>>::Err(
                 Status::Invalid("SCRFD::infer_bound: expected valid BGR view"));
 
@@ -741,7 +737,7 @@ Result<std::vector<algo::Detection>> SCRFD::infer_bound(const internal::BgrImage
 
         // Letterbox + normalize directly into the bound input buffer. The returned geometry
         // is consumed by decode_ to invert the transform when mapping detections back.
-        const idet::internal::LetterboxInfo lb = fill_input_chw_(c.in.data(), in_w, in_h, bgr);
+        const idet::internal::LetterboxInfo lb = fill_input_chw_(c.in.data(), in_w, in_h, bgr_view);
 
         session_.Run(Ort::RunOptions{nullptr}, *c.binding);
 
@@ -755,7 +751,7 @@ Result<std::vector<algo::Detection>> SCRFD::infer_bound(const internal::BgrImage
             bbox_ptrs[hi] = (bbox_i < c.outs.size()) ? c.outs[bbox_i].data() : nullptr;
         }
 
-        auto dets = decode_(heads_, score_ptrs, bbox_ptrs, lb, bgr.cols, bgr.rows);
+        auto dets = decode_(heads_, score_ptrs, bbox_ptrs, lb, bgr_view.width, bgr_view.height);
         return Result<std::vector<algo::Detection>>::Ok(std::move(dets));
     } catch (const std::bad_alloc&) {
         return Result<std::vector<algo::Detection>>::Err(Status::OutOfMemory("SCRFD::infer_bound: bad_alloc"));

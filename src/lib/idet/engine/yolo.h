@@ -30,7 +30,7 @@
 #pragma once
 
 #include "engine/engine.h"
-#include "internal/letterbox.h"
+#include "internal/letterbox_info.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -168,7 +168,8 @@ class YOLO final : public IEngine {
      *
      * @return Letterbox geometry used by decode side to invert the transform.
      */
-    idet::internal::LetterboxInfo fill_input_chw_(float* dst, int in_w, int in_h, const cv::Mat& bgr) const;
+    idet::internal::LetterboxInfo fill_input_chw_(float* dst, int in_w, int in_h,
+                                                  const internal::BgrImageView& bgr) const;
 
     /**
      * @brief Compute the network input shape for a given source size.

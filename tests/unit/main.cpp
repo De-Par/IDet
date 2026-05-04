@@ -24,10 +24,9 @@ int main(int argc, char** argv) {
     const int result = RUN_ALL_TESTS();
 
 #if defined(__APPLE__) && defined(IDET_TEST_ADDRESS_SANITIZER)
-    // Homebrew OpenCV currently pulls TBB into the test process. On macOS ASAN builds
-    // can crash during TBB's process-exit destructor after all tests have passed. Exit
-    // directly in this narrow configuration so sanitizer runs still report real test-time
-    // findings without being dominated by an external shutdown-order issue.
+    // Some Homebrew-linked runtime dependencies can crash during process-exit destructors on
+    // macOS ASAN builds after all tests have passed. Exit directly in this narrow configuration
+    // so sanitizer runs still report real test-time findings.
     std::fflush(nullptr);
     std::_Exit(result);
 #else

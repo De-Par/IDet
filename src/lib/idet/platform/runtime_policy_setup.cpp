@@ -1,15 +1,14 @@
 /**
  * @file runtime_policy_setup.cpp
  * @ingroup idet_platform
- * @brief Runtime policy application implementation (affinity + OpenMP/OpenCV coordination).
+ * @brief Runtime policy application implementation (affinity + OpenMP coordination).
  *
  * @details
  * Implements @c idet::platform::setup_runtime_policy_impl:
  * - computes a conservative desired concurrency from ORT intra/inter and tile OpenMP threads,
  * - applies process/thread affinity via @ref idet::platform::apply_process_placement_policy,
  * - optionally prints topology and runs affinity/NUMA diagnostics,
- * - configures OpenMP environment/runtime via @ref idet::platform::configure_openmp_affinity,
- * - optionally suppresses OpenCV internal threading (cv::setNumThreads(1)).
+ * - configures OpenMP environment/runtime via @ref idet::platform::configure_openmp_affinity.
  *
  * @warning
  * Must run early (before ORT session creation / OpenMP initialization) for best effect.
@@ -17,7 +16,6 @@
 
 #include "platform/runtime_policy_setup.h"
 
-#include "internal/opencv_headers.h" // IWYU pragma: keep
 #include "platform/cross_topology.h"
 #include "platform/omp_config.h"
 
@@ -48,7 +46,7 @@ static inline std::size_t clamp_threads_(int v) noexcept {
 } // namespace
 
 /*
- * @brief Applies process-wide runtime settings for CPU binding, OpenMP, and OpenCV.
+ * @brief Applies process-wide runtime settings for CPU binding and OpenMP.
  *
  * @details
  * Implementation strategy:
@@ -59,7 +57,6 @@ static inline std::size_t clamp_threads_(int v) noexcept {
  * 3) Optionally print detected topology.
  * 4) Run best-effort diagnostics (affinity subset and page locality checks where supported).
  * 5) Configure OpenMP environment/runtime so OpenMP workers stay inside the bound CPU mask.
- * 6) Optionally suppress OpenCV internal threading to avoid oversubscription.
  *
  * @param policy Runtime policy parameters (ORT threads, OpenMP config, memory policy toggles).
  * @param verbose If true, prints topology and configuration diagnostics.
@@ -158,20 +155,9 @@ idet::Status setup_runtime_policy_impl(const idet::RuntimePolicy& policy, bool v
          */
         configure_openmp_affinity(tile_omp_th, verbose);
 
-        /**
-         * @details
-         * Optionally suppress OpenCV internal threading to avoid contention with ORT/OpenMP.
-         *
-         * The library keeps OpenCV SIMD optimizations enabled but forces OpenCV to use a single
-         * thread (OpenCV thread pool disabled).
-         *
-         * @warning
-         * OpenCV threading settings are global and affect all OpenCV usage in the process.
-         */
-        if (policy.suppress_opencv) {
-            cv::setUseOptimized(true); // keep SIMD optimizations
-            cv::setNumThreads(1);      // disable OpenCV thread pool
-        }
+        // Kept as a RuntimePolicy field for ABI/config compatibility. The core library is
+        // OpenCV-free; applications that use OpenCV should apply this setting at their edge.
+        (void)policy.suppress_opencv;
 
         return status;
 

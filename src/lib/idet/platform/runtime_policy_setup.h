@@ -1,7 +1,7 @@
 /**
  * @file runtime_policy_setup.h
  * @ingroup idet_platform
- * @brief Runtime policy application: CPU affinity + OpenMP/OpenCV threading coordination.
+ * @brief Runtime policy application: CPU affinity + OpenMP threading coordination.
  *
  * @details
  * Declares the internal platform entry point that applies @ref idet::RuntimePolicy to the
@@ -12,7 +12,6 @@
  * - Choose a deterministic CPU subset sized for the expected concurrency and apply it as the affinity mask
  *   for all current threads (and rely on inheritance for future threads).
  * - Configure OpenMP affinity/placement so that OpenMP worker threads stay within the selected CPU mask.
- * - Optionally suppress OpenCV internal thread pools to avoid oversubscription.
  *
  * Why this exists:
  * - ORT and OpenMP runtimes tend to initialize thread pools lazily but "early enough" that once initialized
@@ -26,7 +25,7 @@
  * other libraries initialize their own thread pools.
  *
  * @warning
- * Many of the configured knobs are process-global (environment variables, OpenCV global settings).
+ * Many of the configured knobs are process-global (environment variables and OpenMP runtime settings).
  * Calling this function can affect other components within the same process.
  */
 
@@ -48,7 +47,7 @@ namespace idet::platform {
  * - May apply CPU affinity to all current threads (Linux: via /proc/self/task + sched_setaffinity).
  * - May configure OpenMP via @ref idet::platform::configure_openmp_affinity (typically through env vars and/or
  *   OpenMP runtime calls), aiming to keep OpenMP workers inside the process CPU mask.
- * - May call @c cv::setNumThreads(1) when @ref idet::RuntimePolicy::suppress_opencv is enabled.
+ * - Does not touch OpenCV; applications that use OpenCV should apply OpenCV policy themselves.
  *
  * Error reporting:
  * - Returns @ref idet::Status::Invalid when user-provided policy values are inconsistent or cannot be applied.
@@ -63,7 +62,7 @@ namespace idet::platform {
  * This function may:
  * - set CPU affinity mask for the process and all currently existing threads,
  * - set OpenMP-related environment variables and/or OpenMP runtime settings,
- * - suppress OpenCV internal threading globally when requested.
+ * - keep @ref idet::RuntimePolicy::suppress_opencv as a compatibility no-op in the core library.
  *
  * @warning
  * Must be called before creating ORT sessions if you rely on strict affinity and deterministic thread

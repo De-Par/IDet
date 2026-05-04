@@ -27,7 +27,7 @@
 #pragma once
 
 #include "engine/engine.h"
-#include "internal/letterbox.h"
+#include "internal/letterbox_info.h"
 #include "internal/ort_tensor.h"
 
 #include <array>
@@ -61,8 +61,8 @@ class DBNet final : public IEngine {
      *
      * @param cfg Detector configuration snapshot.
      *
-     * @warning Constructor may throw internally (ORT/OpenCV), but the factory that creates engines is expected
-     *          to catch exceptions and convert them into @ref idet::Status.
+     * @warning Constructor may throw internally (ORT), but the factory that creates engines is expected to catch
+     *          exceptions and convert them into @ref idet::Status.
      */
     explicit DBNet(const DetectorConfig& cfg);
 
@@ -100,7 +100,7 @@ class DBNet final : public IEngine {
     /**
      * @brief Run inference in unbound mode.
      *
-     * @param bgr_view Input BGR image (CV_8UC3).
+     * @param bgr_view Input BGR_U8 image view.
      * @return Result with detections or error status.
      */
     Result<std::vector<algo::Detection>> infer_unbound(const internal::BgrImageView& bgr_view) noexcept override;
@@ -108,7 +108,7 @@ class DBNet final : public IEngine {
     /**
      * @brief Run inference in bound mode using a pre-prepared binding context.
      *
-     * @param bgr_view Input BGR image (CV_8UC3).
+     * @param bgr_view Input BGR_U8 image view.
      * @param ctx_idx Context index in [0, bound_contexts()).
      * @return Result with detections or error status.
      */
@@ -185,11 +185,12 @@ class DBNet final : public IEngine {
      * @param dst_chw Destination buffer (size = 3 * in_h * in_w).
      * @param in_w Target input width.
      * @param in_h Target input height.
-     * @param bgr Source image (CV_8UC3).
+     * @param bgr Source BGR_U8 image view.
      * @return Letterbox geometry (uniform scale + padding) used to map decoded coordinates
      *         back to the original image space.
      */
-    idet::internal::LetterboxInfo fill_input_chw_(float* dst_chw, int in_w, int in_h, const cv::Mat& bgr) const;
+    idet::internal::LetterboxInfo fill_input_chw_(float* dst_chw, int in_w, int in_h,
+                                                  const internal::BgrImageView& bgr) const;
 
     /**
      * @brief Run ONNX Runtime inference in unbound mode and return the raw output tensor.

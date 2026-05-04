@@ -8,7 +8,7 @@
  * - preprocessing: BGR U8 -> normalized CHW float32 (with optional resize),
  * - inference: ONNX Runtime session execution (unbound or bound via IoBinding),
  * - output handling: layout-aware extraction of an HxW probability plane,
- * - postprocessing: binarization + contour extraction + rotated-rect quad + unclipping.
+ * - postprocessing: binarization + connected components + oriented-rect quad + unclipping.
  *
  * Output layout handling:
  * - The model export may produce probmap as NCHW / NHWC / N1HW / HW. The implementation uses
@@ -29,17 +29,17 @@
 
 #include "algo/geometry.h"
 #include "internal/chw_preprocess.h"
-#include "internal/letterbox.h"
-#include "internal/opencv_adapter.h"
-#include "internal/opencv_geometry.h"
 
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <exception>
+#include <limits>
 #include <new>
 #include <utility>
+#include <vector>
 
 #if defined(_OPENMP)
     #include <omp.h>
@@ -75,6 +75,96 @@ static inline float sigmoid_(float x) noexcept {
  */
 static inline float clampf_(float v, float lo, float hi) noexcept {
     return std::max(lo, std::min(hi, v));
+}
+
+struct PixelI {
+    int x = 0;
+    int y = 0;
+};
+
+struct OrientedBox {
+    idet::Quad quad{};
+    float w = 0.0f;
+    float h = 0.0f;
+};
+
+static inline float dot_(const idet::Point2f& a, const idet::Point2f& b) noexcept {
+    return a.x * b.x + a.y * b.y;
+}
+
+static inline float len_(const idet::Point2f& v) noexcept {
+    return std::sqrt(dot_(v, v));
+}
+
+static OrientedBox oriented_box_from_pixels_(const std::vector<PixelI>& pixels) noexcept {
+    OrientedBox out{};
+    if (pixels.empty()) return out;
+
+    double sx = 0.0;
+    double sy = 0.0;
+    for (const auto& p : pixels) {
+        sx += static_cast<double>(p.x) + 0.5;
+        sy += static_cast<double>(p.y) + 0.5;
+    }
+
+    const double inv_n = 1.0 / static_cast<double>(pixels.size());
+    const double mx = sx * inv_n;
+    const double my = sy * inv_n;
+
+    double cxx = 0.0;
+    double cxy = 0.0;
+    double cyy = 0.0;
+    for (const auto& p : pixels) {
+        const double dx = (static_cast<double>(p.x) + 0.5) - mx;
+        const double dy = (static_cast<double>(p.y) + 0.5) - my;
+        cxx += dx * dx;
+        cxy += dx * dy;
+        cyy += dy * dy;
+    }
+
+    float angle = 0.0f;
+    if (pixels.size() > 1 && (std::fabs(cxx) > 1e-12 || std::fabs(cyy) > 1e-12 || std::fabs(cxy) > 1e-12)) {
+        angle = 0.5f * static_cast<float>(std::atan2(2.0 * cxy, cxx - cyy));
+    }
+
+    const idet::Point2f ux{std::cos(angle), std::sin(angle)};
+    const idet::Point2f uy{-ux.y, ux.x};
+
+    float min_u = std::numeric_limits<float>::infinity();
+    float max_u = -std::numeric_limits<float>::infinity();
+    float min_v = std::numeric_limits<float>::infinity();
+    float max_v = -std::numeric_limits<float>::infinity();
+
+    auto add_corner = [&](float x, float y) noexcept {
+        const idet::Point2f p{x, y};
+        const float u = dot_(p, ux);
+        const float v = dot_(p, uy);
+        min_u = std::min(min_u, u);
+        max_u = std::max(max_u, u);
+        min_v = std::min(min_v, v);
+        max_v = std::max(max_v, v);
+    };
+
+    for (const auto& p : pixels) {
+        const float x = static_cast<float>(p.x);
+        const float y = static_cast<float>(p.y);
+        add_corner(x, y);
+        add_corner(x + 1.0f, y);
+        add_corner(x + 1.0f, y + 1.0f);
+        add_corner(x, y + 1.0f);
+    }
+
+    out.w = max_u - min_u;
+    out.h = max_v - min_v;
+    if (!(out.w > 0.0f) || !(out.h > 0.0f)) return out;
+
+    auto from_uv = [&](float u, float v) noexcept -> idet::Point2f {
+        return {ux.x * u + uy.x * v, ux.y * u + uy.y * v};
+    };
+
+    out.quad = {from_uv(min_u, min_v), from_uv(max_u, min_v), from_uv(max_u, max_v), from_uv(min_u, max_v)};
+    algo::order_quad(out.quad.data());
+    return out;
 }
 
 } // namespace
@@ -200,15 +290,13 @@ DBNet::NetGeom DBNet::make_geom_(int orig_w, int orig_h, int force_w, int force_
  *
  * The pixel values are then normalized with ImageNet mean/std (in BGR order, in 0..255 scale).
  */
-idet::internal::LetterboxInfo DBNet::fill_input_chw_(float* dst, int in_w, int in_h, const cv::Mat& bgr) const {
+idet::internal::LetterboxInfo DBNet::fill_input_chw_(float* dst, int in_w, int in_h,
+                                                     const internal::BgrImageView& bgr) const {
     // mean/std in BGR order (ImageNet)
     const float mean[3] = {0.406f * 255.0f, 0.456f * 255.0f, 0.485f * 255.0f};
     const float inv_std[3] = {1.0f / (0.225f * 255.0f), 1.0f / (0.224f * 255.0f), 1.0f / (0.229f * 255.0f)};
 
-    cv::Mat lb_img;
-    auto info = internal::letterbox_bgr(bgr, lb_img, in_w, in_h, /*pad_value=*/0);
-    internal::bgr_u8_to_chw_f32_same_size(lb_img, dst, mean, inv_std);
-    return info;
+    return internal::bgr_u8_to_chw_f32_letterbox(bgr, in_w, in_h, /*pad_value=*/0, dst, mean, inv_std);
 }
 
 /**
@@ -296,30 +384,34 @@ Result<idet::internal::TensorDesc> DBNet::probe_output_desc_(int in_h, int in_w)
 idet::Quad DBNet::unclip_rect_like_(const idet::Quad& box, float unclip) noexcept {
     if (unclip <= 1.0f) return box;
 
-    // Recover the rotated rect (center, size, angle) from the four points so we can extend
-    // its size along the rect's local axes rather than along the global x/y axes.
-    const auto cv_box = internal::opencv_adapter::to_cv_quad(box);
-    std::vector<cv::Point2f> pts(cv_box.begin(), cv_box.end());
-    cv::RotatedRect rr = cv::minAreaRect(pts);
+    idet::Quad ordered = box;
+    algo::order_quad(ordered.data());
 
-    const float w = rr.size.width;
-    const float h = rr.size.height;
+    const idet::Point2f ex{ordered[1].x - ordered[0].x, ordered[1].y - ordered[0].y};
+    const idet::Point2f ey{ordered[3].x - ordered[0].x, ordered[3].y - ordered[0].y};
+
+    const float w = len_(ex);
+    const float h = len_(ey);
     if (w <= 1.0f || h <= 1.0f) return box;
+
+    const idet::Point2f ux{ex.x / w, ex.y / w};
+    const idet::Point2f uy{ey.x / h, ey.y / h};
+    const idet::Point2f center{(ordered[0].x + ordered[1].x + ordered[2].x + ordered[3].x) * 0.25f,
+                               (ordered[0].y + ordered[1].y + ordered[2].y + ordered[3].y) * 0.25f};
 
     // Vatti polygon offset distance for a rectangle: D = area * unclip / perimeter.
     const float perimeter = 2.0f * (w + h);
     const float D = (w * h * unclip) / perimeter;
 
-    rr.size.width = w + 2.0f * D;
-    rr.size.height = h + 2.0f * D;
+    const float hw = 0.5f * w + D;
+    const float hh = 0.5f * h + D;
 
-    cv::Point2f cv_pts[4];
-    rr.points(cv_pts);
+    idet::Quad out;
+    out[0] = {center.x - ux.x * hw - uy.x * hh, center.y - ux.y * hw - uy.y * hh};
+    out[1] = {center.x + ux.x * hw - uy.x * hh, center.y + ux.y * hw - uy.y * hh};
+    out[2] = {center.x + ux.x * hw + uy.x * hh, center.y + ux.y * hw + uy.y * hh};
+    out[3] = {center.x - ux.x * hw + uy.x * hh, center.y - ux.y * hw + uy.y * hh};
 
-    std::array<cv::Point2f, 4> out_cv{};
-    for (std::size_t i = 0; i < out_cv.size(); ++i)
-        out_cv[i] = cv_pts[i];
-    idet::Quad out = internal::opencv_adapter::from_cv_quad(out_cv);
     algo::order_quad(out.data());
     return out;
 }
@@ -331,9 +423,9 @@ idet::Quad DBNet::unclip_rect_like_(const idet::Quad& box, float unclip) noexcep
  * Pipeline:
  * 1) Optional sigmoid (if output is logits).
  * 2) Binarize with @ref bin_thresh_ to a bitmap.
- * 3) Extract contours.
- * 4) Score each contour using probability map, filter by @ref box_thresh_.
- * 5) Fit min-area rotated rectangle, optionally unclip, map back to original image space.
+ * 3) Extract connected components over foreground pixels.
+ * 4) Score each component using the foreground mean probability, filter by @ref box_thresh_.
+ * 5) Fit a PCA-oriented rectangle, optionally unclip, map back to original image space.
  *
  * @note
  * The returned detections are sorted by descending score.
@@ -344,17 +436,17 @@ std::vector<algo::Detection> DBNet::postprocess_hw_(const float* prob_hw, int ou
     if (!prob_hw || out_w <= 0 || out_h <= 0 || orig_w <= 0 || orig_h <= 0) return dets;
     if (geom.in_w <= 0 || geom.in_h <= 0) return dets;
 
-    cv::Mat prob(out_h, out_w, CV_32F, const_cast<float*>(prob_hw));
-
     const float thr = clampf_(bin_thresh_, 0.0f, 1.0f);
+    const std::size_t area = static_cast<std::size_t>(out_w) * static_cast<std::size_t>(out_h);
 
-    // Fuse optional sigmoid + binarization in a single pass to avoid an extra clone + loop.
-    // prob2 holds the (possibly sigmoid-transformed) probability map used downstream for
-    // contour scoring; bitmap is the binary mask consumed by cv::findContours.
-    //
-    // Rows are independent, so we parallelize across @c y for large enough maps.
-    cv::Mat prob2;
-    cv::Mat bitmap(out_h, out_w, CV_8U);
+    std::vector<float> prob2;
+    const float* prob = prob_hw;
+    if (apply_sigmoid_) {
+        prob2.resize(area);
+        prob = prob2.data();
+    }
+
+    std::vector<std::uint8_t> bitmap(area, 0);
     constexpr int kParallelMinPixels = 64 * 64;
     bool parallel = (out_h * out_w) >= kParallelMinPixels;
 #if defined(_OPENMP)
@@ -365,35 +457,30 @@ std::vector<algo::Detection> DBNet::postprocess_hw_(const float* prob_hw, int ou
     (void)parallel; // referenced inside the OpenMP `if (parallel)` clause
 
     if (apply_sigmoid_) {
-        prob2.create(out_h, out_w, CV_32F);
 #if defined(_OPENMP)
     #pragma omp parallel for schedule(static) if (parallel)
 #endif
         for (int y = 0; y < out_h; ++y) {
-            const float* src = prob.ptr<float>(y);
-            float* dst = prob2.ptr<float>(y);
-            std::uint8_t* br = bitmap.ptr<std::uint8_t>(y);
+            const std::size_t row = static_cast<std::size_t>(y) * static_cast<std::size_t>(out_w);
             for (int x = 0; x < out_w; ++x) {
-                const float s = sigmoid_(src[x]);
-                dst[x] = s;
-                br[x] = (s > thr) ? 255 : 0;
+                const std::size_t idx = row + static_cast<std::size_t>(x);
+                const float s = sigmoid_(prob_hw[idx]);
+                prob2[idx] = s;
+                bitmap[idx] = (s > thr) ? 1U : 0U;
             }
         }
     } else {
-        prob2 = prob;
 #if defined(_OPENMP)
     #pragma omp parallel for schedule(static) if (parallel)
 #endif
         for (int y = 0; y < out_h; ++y) {
-            const float* pr = prob2.ptr<float>(y);
-            std::uint8_t* br = bitmap.ptr<std::uint8_t>(y);
-            for (int x = 0; x < out_w; ++x)
-                br[x] = (pr[x] > thr) ? 255 : 0;
+            const std::size_t row = static_cast<std::size_t>(y) * static_cast<std::size_t>(out_w);
+            for (int x = 0; x < out_w; ++x) {
+                const std::size_t idx = row + static_cast<std::size_t>(x);
+                bitmap[idx] = (prob_hw[idx] > thr) ? 1U : 0U;
+            }
         }
     }
-
-    std::vector<std::vector<cv::Point>> contours;
-    cv::findContours(bitmap, contours, cv::RETR_LIST, cv::CHAIN_APPROX_SIMPLE);
 
     // Coordinate chain:
     //   probmap (out_w x out_h)  --pm_to_in-->  network input (in_w x in_h)
@@ -408,53 +495,89 @@ std::vector<algo::Detection> DBNet::postprocess_hw_(const float* prob_hw, int ou
     const float pad_x = (float)geom.lb.pad_x;
     const float pad_y = (float)geom.lb.pad_y;
 
-    // Reuse a single scratch instance across all contours in this postprocess call. The internal
-    // mask buffer is allocated lazily on the first contour and then reused; the per-contour
-    // vector inside scratch is also reused.
-    internal::opencv_geometry::ContourScoreScratch contour_scratch;
+    std::vector<std::uint8_t> seen(area, 0);
+    std::vector<int> stack;
+    std::vector<PixelI> pixels;
+    stack.reserve(256);
+    pixels.reserve(256);
 
-    for (auto& c : contours) {
-        if (c.size() < 4) continue;
+    for (int sy = 0; sy < out_h; ++sy) {
+        for (int sx = 0; sx < out_w; ++sx) {
+            const std::size_t start =
+                static_cast<std::size_t>(sy) * static_cast<std::size_t>(out_w) + static_cast<std::size_t>(sx);
+            if (bitmap[start] == 0 || seen[start] != 0) continue;
 
-        const float score = internal::opencv_geometry::contour_score(prob2, c, contour_scratch);
-        if (score < box_thresh_) continue;
+            stack.clear();
+            pixels.clear();
+            stack.push_back(static_cast<int>(start));
+            seen[start] = 1;
 
-        cv::RotatedRect rr = cv::minAreaRect(c);
-        const float w = rr.size.width;
-        const float h = rr.size.height;
-        if (w <= 1.f || h <= 1.f) continue;
+            double score_sum = 0.0;
 
-        // Convert size from probmap pixels to original-image pixels. The (1/scale) factor
-        // undoes the letterbox uniform scaling; pm_to_in_* compensates if probmap is at a
-        // different resolution than the network input.
-        const float ow = w * pm_to_in_x * inv_scale;
-        const float oh = h * pm_to_in_y * inv_scale;
-        if (min_w_ > 0 && ow < (float)min_w_) continue;
-        if (min_h_ > 0 && oh < (float)min_h_) continue;
+            while (!stack.empty()) {
+                const int idx_i = stack.back();
+                stack.pop_back();
 
-        std::array<cv::Point2f, 4> cv_box{};
-        rr.points(cv_box.data());
+                const int y = idx_i / out_w;
+                const int x = idx_i - y * out_w;
+                pixels.push_back({x, y});
+                score_sum += static_cast<double>(prob[static_cast<std::size_t>(idx_i)]);
 
-        idet::Quad box = internal::opencv_adapter::from_cv_quad(cv_box);
+                for (int dy = -1; dy <= 1; ++dy) {
+                    const int ny = y + dy;
+                    if (ny < 0 || ny >= out_h) continue;
+                    for (int dx = -1; dx <= 1; ++dx) {
+                        if (dx == 0 && dy == 0) continue;
+                        const int nx = x + dx;
+                        if (nx < 0 || nx >= out_w) continue;
 
-        // Apply unclip in probmap space (it's a uniform expansion of the rotated rect, so
-        // the result is identical to applying it in network-input space, modulo a constant
-        // scale that is handled by the mapping below).
-        if (unclip_ > 1.0f) box = unclip_rect_like_(box, unclip_);
+                        const std::size_t nidx = static_cast<std::size_t>(ny) * static_cast<std::size_t>(out_w) +
+                                                 static_cast<std::size_t>(nx);
+                        if (bitmap[nidx] == 0 || seen[nidx] != 0) continue;
 
-        for (auto& p : box) {
-            const float xn = p.x * pm_to_in_x; // probmap -> network input
-            const float yn = p.y * pm_to_in_y;
-            p.x = clampf_((xn - pad_x) * inv_scale, 0.0f, (float)orig_w);
-            p.y = clampf_((yn - pad_y) * inv_scale, 0.0f, (float)orig_h);
+                        seen[nidx] = 1;
+                        stack.push_back(static_cast<int>(nidx));
+                    }
+                }
+            }
+
+            if (pixels.size() < 4) continue;
+
+            const float score = static_cast<float>(score_sum / static_cast<double>(pixels.size()));
+            if (score < box_thresh_) continue;
+
+            OrientedBox ob = oriented_box_from_pixels_(pixels);
+            if (ob.w <= 1.f || ob.h <= 1.f) continue;
+
+            // Convert size from probmap pixels to original-image pixels. The (1/scale) factor
+            // undoes the letterbox uniform scaling; pm_to_in_* compensates if probmap is at a
+            // different resolution than the network input.
+            const float ow = ob.w * pm_to_in_x * inv_scale;
+            const float oh = ob.h * pm_to_in_y * inv_scale;
+            if (min_w_ > 0 && ow < (float)min_w_) continue;
+            if (min_h_ > 0 && oh < (float)min_h_) continue;
+
+            idet::Quad box = ob.quad;
+
+            // Apply unclip in probmap space (it's a uniform expansion of the rotated rect, so
+            // the result is identical to applying it in network-input space, modulo a constant
+            // scale that is handled by the mapping below).
+            if (unclip_ > 1.0f) box = unclip_rect_like_(box, unclip_);
+
+            for (auto& p : box) {
+                const float xn = p.x * pm_to_in_x; // probmap -> network input
+                const float yn = p.y * pm_to_in_y;
+                p.x = clampf_((xn - pad_x) * inv_scale, 0.0f, (float)orig_w);
+                p.y = clampf_((yn - pad_y) * inv_scale, 0.0f, (float)orig_h);
+            }
+
+            algo::order_quad(box.data());
+
+            algo::Detection d;
+            d.score = score;
+            d.pts = box;
+            dets.push_back(d);
         }
-
-        algo::order_quad(box.data());
-
-        algo::Detection d;
-        d.score = score;
-        d.pts = box;
-        dets.push_back(d);
     }
 
     std::sort(dets.begin(), dets.end(), [](const auto& a, const auto& b) { return a.score > b.score; });
@@ -535,19 +658,18 @@ void DBNet::unset_binding() noexcept {
 
 Result<std::vector<algo::Detection>> DBNet::infer_unbound(const internal::BgrImageView& bgr_view) noexcept {
     try {
-        const cv::Mat bgr = internal::opencv_adapter::wrap_bgr_view(bgr_view);
-        if (bgr.empty() || bgr.type() != CV_8UC3) {
+        if (!bgr_view.is_valid()) {
             return Result<std::vector<algo::Detection>>::Err(
                 Status::Invalid("DBNet::infer_unbound: expected valid BGR view"));
         }
 
-        const int ow = bgr.cols;
-        const int oh = bgr.rows;
+        const int ow = bgr_view.width;
+        const int oh = bgr_view.height;
 
         NetGeom g = make_geom_(ow, oh, 0, 0);
 
         std::vector<float> in((std::size_t)3 * (std::size_t)g.in_h * (std::size_t)g.in_w);
-        g.lb = fill_input_chw_(in.data(), g.in_w, g.in_h, bgr);
+        g.lb = fill_input_chw_(in.data(), g.in_w, g.in_h, bgr_view);
 
         auto rr = run_ort_unbound_(in.data(), in.size(), g.in_h, g.in_w);
         if (!rr.ok()) return Result<std::vector<algo::Detection>>::Err(rr.status());
@@ -579,23 +701,22 @@ Result<std::vector<algo::Detection>> DBNet::infer_unbound(const internal::BgrIma
 
 Result<std::vector<algo::Detection>> DBNet::infer_bound(const internal::BgrImageView& bgr_view, int ctx_idx) noexcept {
     try {
-        const cv::Mat bgr = internal::opencv_adapter::wrap_bgr_view(bgr_view);
         if (!binding_ready_)
             return Result<std::vector<algo::Detection>>::Err(Status::Invalid("DBNet::infer_bound: binding not ready"));
         if (ctx_idx < 0 || ctx_idx >= contexts_)
             return Result<std::vector<algo::Detection>>::Err(
                 Status::Invalid("DBNet::infer_bound: ctx_idx out of range"));
-        if (bgr.empty() || bgr.type() != CV_8UC3)
+        if (!bgr_view.is_valid())
             return Result<std::vector<algo::Detection>>::Err(
                 Status::Invalid("DBNet::infer_bound: expected valid BGR view"));
 
         auto& c = ctxs_[(std::size_t)ctx_idx];
 
-        const int ow = bgr.cols;
-        const int oh = bgr.rows;
+        const int ow = bgr_view.width;
+        const int oh = bgr_view.height;
         NetGeom g = make_geom_(ow, oh, bound_w_, bound_h_);
 
-        g.lb = fill_input_chw_(c.in.data(), g.in_w, g.in_h, bgr);
+        g.lb = fill_input_chw_(c.in.data(), g.in_w, g.in_h, bgr_view);
 
         session_.Run(Ort::RunOptions{nullptr}, *c.binding);
 

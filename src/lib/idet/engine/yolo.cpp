@@ -12,8 +12,6 @@
 #include "engine/yolo.h"
 
 #include "internal/chw_preprocess.h"
-#include "internal/letterbox.h"
-#include "internal/opencv_adapter.h"
 
 #include <algorithm>
 #include <array>
@@ -157,16 +155,14 @@ void YOLO::compute_input_size_(int orig_w, int orig_h, int& in_w, int& in_h) con
     in_h = align_up_(th, 32);
 }
 
-idet::internal::LetterboxInfo YOLO::fill_input_chw_(float* dst, int in_w, int in_h, const cv::Mat& bgr) const {
+idet::internal::LetterboxInfo YOLO::fill_input_chw_(float* dst, int in_w, int in_h,
+                                                    const internal::BgrImageView& bgr) const {
     // YOLO normalization: x / 255.0 with no mean. Letterbox pad value is 114 by convention
     // (gray pad used during training across the YOLO family).
     const float mean[3] = {0.0f, 0.0f, 0.0f};
     const float inv_std[3] = {1.0f / 255.0f, 1.0f / 255.0f, 1.0f / 255.0f};
 
-    cv::Mat lb_img;
-    auto info = internal::letterbox_bgr(bgr, lb_img, in_w, in_h, /*pad_value=*/114);
-    internal::bgr_u8_to_chw_f32_same_size(lb_img, dst, mean, inv_std);
-    return info;
+    return internal::bgr_u8_to_chw_f32_letterbox(bgr, in_w, in_h, /*pad_value=*/114, dst, mean, inv_std);
 }
 
 Status YOLO::probe_layout_(int in_h, int in_w) noexcept {
@@ -451,13 +447,12 @@ std::vector<algo::Detection> YOLO::decode_(const std::vector<Ort::Value>& outs, 
 
 Result<std::vector<algo::Detection>> YOLO::infer_unbound(const internal::BgrImageView& bgr_view) noexcept {
     try {
-        const cv::Mat bgr = internal::opencv_adapter::wrap_bgr_view(bgr_view);
-        if (bgr.empty() || bgr.type() != CV_8UC3)
+        if (!bgr_view.is_valid())
             return Result<std::vector<algo::Detection>>::Err(
                 Status::Invalid("YOLO::infer_unbound: expected valid BGR view"));
 
         int in_w = 0, in_h = 0;
-        compute_input_size_(bgr.cols, bgr.rows, in_w, in_h);
+        compute_input_size_(bgr_view.width, bgr_view.height, in_w, in_h);
 
         // Lazy probe.
         if (mode_ == Mode::Unknown) {
@@ -467,7 +462,7 @@ Result<std::vector<algo::Detection>> YOLO::infer_unbound(const internal::BgrImag
 
         std::vector<float> chw(
             static_cast<std::size_t>(3) * static_cast<std::size_t>(in_h) * static_cast<std::size_t>(in_w), 0.0f);
-        const auto lb = fill_input_chw_(chw.data(), in_w, in_h, bgr);
+        const auto lb = fill_input_chw_(chw.data(), in_w, in_h, bgr_view);
 
         Ort::MemoryInfo cpu_mem = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
         const std::vector<int64_t> ishape = {1, 3, in_h, in_w};
@@ -483,7 +478,7 @@ Result<std::vector<algo::Detection>> YOLO::infer_unbound(const internal::BgrImag
         auto outs =
             session_.Run(Ort::RunOptions{nullptr}, in_names, &in_tensor, 1, out_names_c.data(), out_names_c.size());
 
-        auto dets = decode_(outs, lb, bgr.cols, bgr.rows);
+        auto dets = decode_(outs, lb, bgr_view.width, bgr_view.height);
         return Result<std::vector<algo::Detection>>::Ok(std::move(dets));
     } catch (const std::bad_alloc&) {
         return Result<std::vector<algo::Detection>>::Err(Status::OutOfMemory("YOLO::infer_unbound: bad_alloc"));
@@ -598,13 +593,12 @@ void YOLO::unset_binding() noexcept {
 
 Result<std::vector<algo::Detection>> YOLO::infer_bound(const internal::BgrImageView& bgr_view, int ctx_idx) noexcept {
     try {
-        const cv::Mat bgr = internal::opencv_adapter::wrap_bgr_view(bgr_view);
         if (!binding_ready_)
             return Result<std::vector<algo::Detection>>::Err(Status::Invalid("YOLO::infer_bound: binding not ready"));
         if (ctx_idx < 0 || ctx_idx >= contexts_)
             return Result<std::vector<algo::Detection>>::Err(
                 Status::Invalid("YOLO::infer_bound: ctx_idx out of range"));
-        if (bgr.empty() || bgr.type() != CV_8UC3)
+        if (!bgr_view.is_valid())
             return Result<std::vector<algo::Detection>>::Err(
                 Status::Invalid("YOLO::infer_bound: expected valid BGR view"));
 
@@ -613,13 +607,13 @@ Result<std::vector<algo::Detection>> YOLO::infer_bound(const internal::BgrImageV
         const int in_w = align_up_(bound_w_, 32);
         const int in_h = align_up_(bound_h_, 32);
 
-        const auto lb = fill_input_chw_(c.in.data(), in_w, in_h, bgr);
+        const auto lb = fill_input_chw_(c.in.data(), in_w, in_h, bgr_view);
 
         session_.Run(Ort::RunOptions{nullptr}, *c.binding);
 
         // Pull outputs out of the binding so decode can read them.
         auto outs = c.binding->GetOutputValues();
-        auto dets = decode_(outs, lb, bgr.cols, bgr.rows);
+        auto dets = decode_(outs, lb, bgr_view.width, bgr_view.height);
 
         return Result<std::vector<algo::Detection>>::Ok(std::move(dets));
     } catch (const std::bad_alloc&) {

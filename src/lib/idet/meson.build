@@ -185,10 +185,6 @@ if build_tests
     # provided via `link_with` target and its dependency closure. Keep compile-only deps
     # to avoid duplicate link items like `-lonnxruntime`
     idet_internal_compile_deps = [
-        opencv_dep.partial_dependency(
-            compile_args: true,
-            includes: true,
-        ),
         ort_dep.partial_dependency(
             compile_args: true,
             includes: true,

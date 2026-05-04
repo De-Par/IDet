@@ -332,7 +332,6 @@ endif
 
 idet_lib_deps = [
     ort_dep,
-    opencv_dep,
     stb_dep,
 ]
 

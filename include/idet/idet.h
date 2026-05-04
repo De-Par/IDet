@@ -302,14 +302,12 @@ struct RuntimePolicy {
     NumaMemPolicy numa_mem_policy = NumaMemPolicy::Latency;
 
     /**
-     * @brief Suppresses OpenCV internal threading globally.
+     * @brief Compatibility flag for applications that still use OpenCV at their edge.
      *
-     * Often used to avoid thread oversubscription when the application already controls parallelism.
-     *
-     * @warning
-     * If this toggles a global OpenCV setting, it may affect other OpenCV users within the same process.
+     * The core IDet library no longer calls OpenCV. The CLI application may still use this flag
+     * to limit its own OpenCV usage, but @ref setup_runtime_policy treats it as a no-op.
      */
-    bool suppress_opencv = true; // globally
+    bool suppress_opencv = true;
 };
 
 /**
@@ -616,8 +614,8 @@ struct DetectorWorkerOptions {
  * - ORT/OpenMP resource budgets are configured through @ref DetectorConfig::runtime.
  * - Optional bound I/O is configured through @ref DetectorWorkerOptions.
  * - The worker does not call @ref setup_runtime_policy automatically because that function may
- *   change process-global OpenCV/OpenMP state. Applications embedding IDet should apply global
- *   runtime policy explicitly at process setup time if they need it.
+ *   change process-global OpenMP state. Applications embedding IDet should apply global runtime
+ *   policy explicitly at process setup time if they need it.
  *
  * Thread-safety:
  * - @ref state is designed for cheap polling from a hot loop while the worker is running.
@@ -691,16 +689,15 @@ class IDET_API DetectorWorker final {
  * This function configures runtime-related global and per-runtime settings such as:
  * - ONNX Runtime thread counts (intra-op/inter-op),
  * - OpenMP affinity and binding (places/proc_bind) when applicable,
- * - optional memory binding policies,
- * - optional suppression of OpenCV internal threading (if enabled).
+ * - optional memory binding policies.
  *
  * @param policy Runtime policy parameters.
  * @param verbose Enables logging of applied settings (implementation-defined).
  * @return @c Status::Ok() if the policy is applied successfully, otherwise an error status.
  *
  * @warning
- * Some settings may be process-global (e.g., OpenCV threading and some OpenMP configuration),
- * potentially affecting other components in the same process.
+ * Some settings may be process-global (e.g., OpenMP configuration), potentially affecting
+ * other components in the same process.
  */
 [[nodiscard]] IDET_API Status setup_runtime_policy(const RuntimePolicy& policy, bool verbose = true) noexcept;
 

@@ -13,7 +13,7 @@
 #endif
 
 #include "engine/yolo.h"
-#include "internal/letterbox.h"
+#include "internal/letterbox_info.h"
 
 #include <cmath>
 #include <vector>

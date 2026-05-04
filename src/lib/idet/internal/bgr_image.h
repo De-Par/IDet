@@ -82,7 +82,7 @@ struct BgrImageView {
 };
 
 /**
- * @brief Integer rectangle used by tiling without depending on cv::Rect.
+ * @brief Integer rectangle used by tiling without depending on third-party image types.
  */
 struct RectI {
     /** @brief Left coordinate. */

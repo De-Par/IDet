@@ -8,15 +8,34 @@
 
 #include "algo/tiling.h"
 #include "engine/engine.h"
-#include "internal/opencv_headers.h"
+#include "internal/bgr_image.h"
 
 #include <algorithm>
 #include <atomic>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <vector>
 
 namespace {
+
+struct TestBgr {
+    std::vector<std::uint8_t> data;
+    int width = 0;
+    int height = 0;
+
+    [[nodiscard]] idet::internal::BgrImageView view() const noexcept {
+        return {data.data(), width, height, static_cast<std::ptrdiff_t>(width * 3)};
+    }
+};
+
+static TestBgr make_bgr(int width, int height) {
+    TestBgr out;
+    out.width = width;
+    out.height = height;
+    out.data.assign(static_cast<std::size_t>(width) * static_cast<std::size_t>(height) * 3U, 0);
+    return out;
+}
 
 // Use this helper to avoid accidental swaps forever
 static inline idet::GridSpec grid(int cols, int rows) {
@@ -24,11 +43,6 @@ static inline idet::GridSpec grid(int cols, int rows) {
     g.cols = cols;
     g.rows = rows;
     return g;
-}
-
-static inline idet::internal::BgrImageView bgr_view(const cv::Mat& m) noexcept {
-    if (m.empty() || m.type() != CV_8UC3) return {};
-    return {m.data, m.cols, m.rows, static_cast<std::ptrdiff_t>(m.step)};
 }
 
 static inline bool rect_inside(const idet::internal::RectI& r, int W, int H) {
@@ -253,12 +267,12 @@ TEST(Tiling, InferTiled_EmptyOrWrongType_ReturnsErr) {
     cfg.engine = idet::EngineKind::DBNet;
     DummyEngine eng(cfg);
 
-    cv::Mat empty;
-    auto r0 = idet::algo::infer_tiled(eng, bgr_view(empty), false, 0, false, grid(2, 1), 0.0f, 1);
+    auto r0 = idet::algo::infer_tiled(eng, idet::internal::BgrImageView{}, false, 0, false, grid(2, 1), 0.0f, 1);
     EXPECT_FALSE(r0.ok());
 
-    cv::Mat wrong(10, 10, CV_8UC1);
-    auto r1 = idet::algo::infer_tiled(eng, bgr_view(wrong), false, 0, false, grid(2, 1), 0.0f, 1);
+    std::vector<std::uint8_t> wrong(100, 0);
+    idet::internal::BgrImageView wrong_view{wrong.data(), 10, 10, 10};
+    auto r1 = idet::algo::infer_tiled(eng, wrong_view, false, 0, false, grid(2, 1), 0.0f, 1);
     EXPECT_FALSE(r1.ok());
 }
 
@@ -268,10 +282,9 @@ TEST(Tiling, InferTiled_Unbound_OffsetsApplied_2x1_SerialDeterministicOrder) {
     cfg.engine = idet::EngineKind::DBNet;
     DummyEngine eng(cfg);
 
-    // H=50, W=100
-    cv::Mat img(50, 100, CV_8UC3, cv::Scalar(0, 0, 0));
+    auto img = make_bgr(100, 50);
 
-    auto r = idet::algo::infer_tiled(eng, bgr_view(img),
+    auto r = idet::algo::infer_tiled(eng, img.view(),
                                      /*bound=*/false, /*ctx_idx=*/0, /*parallel_bound=*/false, grid(2, 1),
                                      /*overlap=*/0.0f, /*tile_omp_threads=*/1);
     ASSERT_TRUE(r.ok());
@@ -292,10 +305,9 @@ TEST(Tiling, InferTiled_Unbound_OffsetsApplied_1x2_YOffsets_SerialDeterministicO
     cfg.engine = idet::EngineKind::DBNet;
     DummyEngine eng(cfg);
 
-    // H=100, W=50
-    cv::Mat img(100, 50, CV_8UC3, cv::Scalar(0, 0, 0));
+    auto img = make_bgr(50, 100);
 
-    auto r = idet::algo::infer_tiled(eng, bgr_view(img),
+    auto r = idet::algo::infer_tiled(eng, img.view(),
                                      /*bound=*/false, 0, false, grid(1, 2), /*overlap=*/0.0f, /*tile_omp_threads=*/1);
     ASSERT_TRUE(r.ok());
     const auto dets = r.value();
@@ -314,10 +326,9 @@ TEST(Tiling, InferTiled_Unbound_2x2_OffsetsBothAxes_SerialDeterministicOrder) {
     cfg.engine = idet::EngineKind::DBNet;
     DummyEngine eng(cfg);
 
-    // H=60, W=80 => splits: X:40/40, Y:30/30
-    cv::Mat img(60, 80, CV_8UC3, cv::Scalar(0, 0, 0));
+    auto img = make_bgr(80, 60);
 
-    auto r = idet::algo::infer_tiled(eng, bgr_view(img),
+    auto r = idet::algo::infer_tiled(eng, img.view(),
                                      /*bound=*/false, 0, false, grid(2, 2), /*overlap=*/0.0f, /*tile_omp_threads=*/1);
     ASSERT_TRUE(r.ok());
     const auto dets = r.value();
@@ -335,15 +346,15 @@ TEST(Tiling, InferTiled_OverlapStillOffsetsMatchTileOrigins) {
     cfg.engine = idet::EngineKind::DBNet;
     DummyEngine eng(cfg);
 
-    cv::Mat img(50, 100, CV_8UC3, cv::Scalar(0, 0, 0)); // H=50 W=100
+    auto img = make_bgr(100, 50);
     const auto g = grid(2, 1);
     const float overlap = 0.25f;
 
     // Use make_tiles() to define the contract
-    const auto tiles = idet::algo::make_tiles(img.cols, img.rows, g, overlap);
+    const auto tiles = idet::algo::make_tiles(img.width, img.height, g, overlap);
     ASSERT_EQ(tiles.size(), 2u);
 
-    auto r = idet::algo::infer_tiled(eng, bgr_view(img),
+    auto r = idet::algo::infer_tiled(eng, img.view(),
                                      /*bound=*/false, 0, false, g, overlap, /*tile_omp_threads=*/1);
     ASSERT_TRUE(r.ok());
     const auto dets = r.value();
@@ -359,8 +370,8 @@ TEST(Tiling, InferTiled_Bound_WithoutBinding_ReturnsErr) {
     cfg.engine = idet::EngineKind::DBNet;
     DummyEngine eng(cfg);
 
-    cv::Mat img(50, 100, CV_8UC3, cv::Scalar(0, 0, 0));
-    auto r = idet::algo::infer_tiled(eng, bgr_view(img),
+    auto img = make_bgr(100, 50);
+    auto r = idet::algo::infer_tiled(eng, img.view(),
                                      /*bound=*/true, /*ctx_idx=*/0, /*parallel_bound=*/false, grid(2, 1), 0.0f, 1);
     EXPECT_FALSE(r.ok());
 }
@@ -372,11 +383,11 @@ TEST(Tiling, InferTiled_Bound_Serial_UsesGivenCtx_AndValidatesRange) {
     DummyEngine eng(cfg);
     ASSERT_TRUE(eng.setup_binding(64, 64, 4).ok());
 
-    cv::Mat img(50, 100, CV_8UC3, cv::Scalar(0, 0, 0));
+    auto img = make_bgr(100, 50);
 
     // good ctx
     {
-        auto r = idet::algo::infer_tiled(eng, bgr_view(img),
+        auto r = idet::algo::infer_tiled(eng, img.view(),
                                          /*bound=*/true, /*ctx_idx=*/2, /*parallel_bound=*/false, grid(2, 1), 0.0f, 8);
         ASSERT_TRUE(r.ok());
         EXPECT_EQ(eng.calls_bound.load(), 2);
@@ -389,7 +400,7 @@ TEST(Tiling, InferTiled_Bound_Serial_UsesGivenCtx_AndValidatesRange) {
 
     // out of range ctx should error
     {
-        auto r = idet::algo::infer_tiled(eng, bgr_view(img),
+        auto r = idet::algo::infer_tiled(eng, img.view(),
                                          /*bound=*/true, /*ctx_idx=*/99, /*parallel_bound=*/false, grid(2, 1), 0.0f, 8);
         EXPECT_FALSE(r.ok());
     }
@@ -402,10 +413,10 @@ TEST(Tiling, InferTiled_Bound_Parallel_UsesOnlyValidCtxIds) {
     DummyEngine eng(cfg);
     ASSERT_TRUE(eng.setup_binding(64, 64, 4).ok());
 
-    cv::Mat img(64, 128, CV_8UC3, cv::Scalar(0, 0, 0)); // H=64 W=128
-    const auto g = grid(4, 1);                          // 4 tiles
+    auto img = make_bgr(128, 64);
+    const auto g = grid(4, 1); // 4 tiles
 
-    auto r = idet::algo::infer_tiled(eng, bgr_view(img),
+    auto r = idet::algo::infer_tiled(eng, img.view(),
                                      /*bound=*/true, /*ctx_idx=*/0, /*parallel_bound=*/true, g, 0.0f,
                                      /*tile_omp_threads=*/8);
     ASSERT_TRUE(r.ok());
@@ -425,8 +436,8 @@ TEST(Tiling, InferTiled_Unbound_BasicRun_Succeeds) {
     cfg.engine = idet::EngineKind::DBNet;
     DummyEngine eng(cfg);
 
-    cv::Mat img(32, 64, CV_8UC3, cv::Scalar(0, 0, 0));
-    auto r = idet::algo::infer_tiled(eng, bgr_view(img), /*bound=*/false, 0, false, grid(4, 1), 0.0f, 1);
+    auto img = make_bgr(64, 32);
+    auto r = idet::algo::infer_tiled(eng, img.view(), /*bound=*/false, 0, false, grid(4, 1), 0.0f, 1);
     ASSERT_TRUE(r.ok());
     EXPECT_EQ(eng.calls_unbound.load(), 4);
 }
