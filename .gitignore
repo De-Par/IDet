@@ -81,13 +81,17 @@ compile_commands.json
 # Temp files / logs 
 reports
 profiling
-data
+data*/
 docs/api
 docs/doxygen/html
 docs/site
 *.log
 *.tmp
 *.html
+*.csv
 
 # Local env
 toolchain/env/local.env
+
+# Cache data
+.cache/

@@ -3,7 +3,6 @@ project('IDet', ['c', 'cpp'],
     default_options: [
         'cpp_std=c++17',
         'warning_level=2',
-        'optimization=3',
         'buildtype=release',
         'b_ndebug=if-release',
         'default_library=shared',  # shared / static / both

@@ -32,7 +32,7 @@ def run_capture(cmd: List[str]) -> str:
 
 
 def join_flags(*chunks) -> str:
-    """Join compiler flags from lists/strings preserving order."""
+    """Join compiler flags from lists/strings preserving order"""
     out: List[str] = []
     for c in chunks:
         if not c:
@@ -129,7 +129,7 @@ def detect_runtime_lib_dir(cxx_bin: str, libnames: List[str]) -> Optional[Path]:
 
 
 def parse_extra_defines(extra: str) -> List[str]:
-    """Parse semicolon-separated KEY=VALUE items."""
+    """Parse semicolon-separated KEY=VALUE items"""
     extra = (extra or "").strip()
     if not extra:
         return []
@@ -146,7 +146,7 @@ def natural_version_key(p: Path):
 
 
 def ensure_symlink(link_path: Path, target_dir: Path) -> None:
-    """Force link_path to be a symlink to target_dir (directory)."""
+    """Force link_path to be a symlink to target_dir (directory)"""
     link_path = Path(link_path)
     target_dir = Path(target_dir)
 
@@ -263,7 +263,7 @@ def cmake_defines(
         # CMake basics
         "CMAKE_BUILD_TYPE": "Release",
         "CMAKE_POSITION_INDEPENDENT_CODE": "ON",
-        "CMAKE_POLICY_VERSION_MINIMUM": "3.5",
+        "CMAKE_POLICY_VERSION_MINIMUM": "3.11",
         "CMAKE_INSTALL_PREFIX": str(install_dir),
 
         # FetchContent cache (persistent!)
@@ -328,7 +328,7 @@ def cmake_defines(
 
 
 def is_built(install_dir: Path) -> bool:
-    """Heuristic: ORT is built+installed if lib exists."""
+    """Heuristic: ORT is built+installed if lib exists"""
     lib_dir = install_dir / "lib"
     if not lib_dir.exists():
         return False
@@ -499,4 +499,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-    

@@ -6,79 +6,77 @@ clone-recursive = true
 depth = 1
 
 # v1.23.2
-revision = a83fc4d58cb48eb68890dd689f94f28288cf2278  
+revision = a83fc4d58cb48eb68890dd689f94f28288cf2278
 
 [provide]
 onnxruntime = onnxruntime_dep
 
-# Tag        Revision to checkout                        CMake min version 
-# ------------------------------------------------------------------------
-# v0.1.4     e8db06ed44bed2f2aacdc21bd332d5955ef93527    3.11       
-# v0.1.5     71ea92355b7fe7ca4f0ca78759ed825bfd23688b    3.11       
-# v0.2.1     e12e4c42768493f70575d064e476120bf0474df9    3.11       
-# v0.3.0     5751f1b4be7d2b39602e80156feea08ef95321c3    3.11       
-# v0.3.1     18ca4df488049d3792463f063dcfd63303ae4319    3.11  
-
-# v0.4.0     bf859a9a5489a5f0c954ad7da724f3514983d0e3    3.13       
-# v0.5.0     1f8019bc9208c5ddf3c59561570f654888369746    3.13       
-# v0.5.1     7963e775ca5e57a236925fad98c8055245e183be    3.13       
-# v1.0.0     b783805f957c88f97b2b4398e2ace138fbdf831b    3.13       
-# v1.1.0     c33dab394f4984ab28a370d96c373f0fca84d826    3.13       
-# v1.1.1     2cec09a48347748823c36fbee494af1565637e04    3.13       
-# v1.1.2     a8efa42d6885212627f0e4e3bd251caedc6a8d7c    3.13       
-# v1.2.0     dacb42fe0480e5632a5b6d9ece5cd92558c8e177    3.13       
-# v1.3.0     eb5da13bb5744c92583e03f8c7a7ddd8198e6771    3.13       
-# v1.3.1     530117cfdb230228c3429ab39d1b7cf1f68c0567    3.13       
-# v1.4.0     1f69a58105f320e9b79008698b4275fa3f113f2d    3.13       
-# v1.5.1     5de47affb14bbb7e0cea35c0f12c6b7f0436025e    3.13       
-# v1.5.2     ad7cc541ff96f32cc6dd27040f27a451b36acdef    3.13       
-# v1.5.3     7bcf796a0d3208b0c193d1758708495b09281e0a    3.13       
-# v1.6.0     718ca7f92085bef4b19b1acc71c1e1f3daccde94    3.13       
-# v1.7.0     40b092961c1c57a0422d53f14692855b550b1422    3.13       
-# v1.7.1     711a31e2ea7f9d7512d29f26702476102bda4ca4    3.13       
-# v1.7.2     5bc92dff16b0ddd5063b717fb8522ca2ad023cb0    3.13       
-# v1.8.0     d4106deeb65c21eed3ed40df149efefeb72fe9a4    3.13       
-# v1.8.1     96bb4b1ce83efd13b7dba54f707b27303354e480    3.13       
-# v1.8.2     430e80e7b6e5e6222b2d90ca5e43609d62082722    3.13   
-
-# v1.9.0     4daa14bc74b5378d5fcb0d6de063a9fa8bd42eac    3.18       
-# v1.9.1     2a96b73a1afa9aaafb510749627e267c4e8dee63    3.18       
-# v1.10.0    0d9030e79888d1d5828730b254fedc53c7b640c1    3.18       
-# v1.11.0    b713855a980056d89a1e550ad81dc3c19573d7a0    3.18       
-# v1.11.1    366f4ebcb425b6a47c2b0decd3b39fa14eb9dbf6    3.18       
-# v1.12.0    f4663641764ccc3e93a617ab63ae4ff1badc2ee1    3.18       
-# v1.12.1    70481649e3c2dba0f0e1728d15a00e440084a217    3.18       
-# v1.13.1    b353e0b41d588605958b03f9a223d10a2fbeb514    3.18   
-
-# v1.14.0    6ccaeddefa65ccac402a47fa4d9cad8229794bb2    3.24       
-# v1.14.1    c57cf374b67f72575546d7b4c69a1af4972e2b54    3.24    
-
-# v1.15.0    638146b79ea52598ece514704d3f592c10fab2f1    3.25       
-# v1.15.1    baeece44ba075009c6bfe95891a8c1b3d4571cb3    3.25    
-
-# v1.16.0    e7a0495a874251e9747b2ce0683e0580282c54df    3.26       
-# v1.16.1    2a1fd2586ff9ea7b2af94a7d4b1b3c124f5f3cda    3.26       
-# v1.16.2    0c5b95fc86750526d09ee9e669a98506116c6bde    3.26       
-# v1.16.3    2ac381c55397dffff327cc6efecf6f95a70f90a1    3.26       
-# v1.17.0    5f0b62cde54f59bdeac7978c9f9c12d0a4bc56db    3.26       
-# v1.17.1    8f5c79cb63f09ef1302e85081093a3fe4da1bc7d    3.26       
-# v1.17.3    56b660f36940a919295e6f1e18ad3a9a93a10bf7    3.26       
-# v1.18.0    45737400a2f3015c11f005ed7603611eaed306a6    3.26       
-# v1.18.1    387127404e6c1d84b3468c387d864877ed1c67fe    3.26       
-# v1.18.2    9691af1a2a17b12af04652f4d8d2a18ce9507025    3.26       
-# v1.19.0    26250ae74d2c9a3c6860625ba4a147ddfb936907    3.26       
-# v1.19.2    ffceed9d44f2f3efb9dd69fa75fea51163c91d91    3.26       
-# v1.20.0    c4fb724e810bb496165b9015c77f402727392933    3.26       
-# v1.20.1    5c1b7ccbff7e5141c1da7a9d963d660e5741c319    3.26       
-# v1.20.2    8608bf02f21774be0388d2aa3a9f886d009d0b4c    3.26  
-
-# v1.21.0    e0b66cad282043d4377cea5269083f17771b6dfc    3.28       
-# v1.21.1    8f7cce3a49fdbdac96e0868b75b7d0159db7ac7f    3.28       
-# v1.22.0    f217402897f40ebba457e2421bc0a4702771968e    3.28       
-# v1.22.1    89746dc19a0a1ae59ebf4b16df9acab8f99f3925    3.28       
-# v1.22.2    5630b081cd25e4eccc7516a652ff956e51676794    3.28       
-# v1.23.0    be835efc56aca19b8e810538ec93c8e150e0fc61    3.28       
-# v1.23.1    d9b2048791efb5804fe3d53a04b4971256addebf    3.28       
-# v1.23.2    a83fc4d58cb48eb68890dd689f94f28288cf2278    3.28       
-# v1.24.1    470ae16099a74fe05e31f2530489332c0525edb5    3.28       
-# v1.24.2    058787ceead760166e3c50a0a4cba8a833a6f53f    3.28       
+# Tag      Commit                                    CMake min  Python min  C++ std  Opset min  Opset max
+# -------------------------------------------------------------------------------------------------------
+# v0.1.4   e8db06ed44bed2f2aacdc21bd332d5955ef93527  3.11       N/A         C++14    7          8
+# v0.1.5   71ea92355b7fe7ca4f0ca78759ed825bfd23688b  3.11       N/A         C++14    7          8
+# v0.2.1   e12e4c42768493f70575d064e476120bf0474df9  3.11       N/A         C++14    7          8
+# v0.3.0   5751f1b4be7d2b39602e80156feea08ef95321c3  3.11       N/A         C++14    7          9
+# v0.3.1   18ca4df488049d3792463f063dcfd63303ae4319  3.11       N/A         C++14    7          9
+# v0.4.0   bf859a9a5489a5f0c954ad7da724f3514983d0e3  3.13       N/A         C++14    7          10
+# v0.5.0   1f8019bc9208c5ddf3c59561570f654888369746  3.13       N/A         C++14    7          10
+# v0.5.1   7963e775ca5e57a236925fad98c8055245e183be  3.13       N/A         C++14    7          10
+# v1.0.0   b783805f957c88f97b2b4398e2ace138fbdf831b  3.13       N/A         C++14    7          11
+# v1.1.0   c33dab394f4984ab28a370d96c373f0fca84d826  3.13       N/A         C++14    7          11
+# v1.1.1   2cec09a48347748823c36fbee494af1565637e04  3.13       N/A         C++14    7          11
+# v1.1.2   a8efa42d6885212627f0e4e3bd251caedc6a8d7c  3.13       N/A         C++14    7          11
+# v1.2.0   dacb42fe0480e5632a5b6d9ece5cd92558c8e177  3.13       N/A         C++14    7          N/A
+# v1.3.0   eb5da13bb5744c92583e03f8c7a7ddd8198e6771  3.13       N/A         C++14    7          12
+# v1.3.1   530117cfdb230228c3429ab39d1b7cf1f68c0567  3.13       N/A         C++14    7          12
+# v1.4.0   1f69a58105f320e9b79008698b4275fa3f113f2d  3.13       N/A         C++14    7          12
+# v1.5.1   5de47affb14bbb7e0cea35c0f12c6b7f0436025e  3.13       N/A         C++14    7          12
+# v1.5.2   ad7cc541ff96f32cc6dd27040f27a451b36acdef  3.13       N/A         C++14    7          12
+# v1.5.3   7bcf796a0d3208b0c193d1758708495b09281e0a  3.13       N/A         C++14    7          12
+# v1.6.0   718ca7f92085bef4b19b1acc71c1e1f3daccde94  3.13       N/A         C++14    7          13
+# v1.7.0   40b092961c1c57a0422d53f14692855b550b1422  3.13       N/A         C++14    7          13
+# v1.7.1   711a31e2ea7f9d7512d29f26702476102bda4ca4  3.13       N/A         C++14    7          13
+# v1.7.2   5bc92dff16b0ddd5063b717fb8522ca2ad023cb0  3.13       N/A         C++14    7          13
+# v1.8.0   d4106deeb65c21eed3ed40df149efefeb72fe9a4  3.13       N/A         C++14    7          14
+# v1.8.1   96bb4b1ce83efd13b7dba54f707b27303354e480  3.13       N/A         C++14    7          14
+# v1.8.2   430e80e7b6e5e6222b2d90ca5e43609d62082722  3.13       N/A         C++14    7          14
+# v1.9.0   4daa14bc74b5378d5fcb0d6de063a9fa8bd42eac  3.18       N/A         C++17    7          15
+# v1.9.1   2a96b73a1afa9aaafb510749627e267c4e8dee63  3.18       N/A         C++17    7          15
+# v1.10.0  0d9030e79888d1d5828730b254fedc53c7b640c1  3.18       N/A         C++17    7          15
+# v1.11.0  b713855a980056d89a1e550ad81dc3c19573d7a0  3.18       N/A         C++17    7          16
+# v1.11.1  366f4ebcb425b6a47c2b0decd3b39fa14eb9dbf6  3.18       N/A         C++17    7          16
+# v1.12.0  f4663641764ccc3e93a617ab63ae4ff1badc2ee1  3.18       N/A         C++17    7          17
+# v1.12.1  70481649e3c2dba0f0e1728d15a00e440084a217  3.18       N/A         C++17    7          17
+# v1.13.1  b353e0b41d588605958b03f9a223d10a2fbeb514  3.18       N/A         C++17    7          17
+# v1.14.0  6ccaeddefa65ccac402a47fa4d9cad8229794bb2  3.24       N/A         C++17    7          18
+# v1.14.1  c57cf374b67f72575546d7b4c69a1af4972e2b54  3.24       N/A         C++17    7          18
+# v1.15.0  638146b79ea52598ece514704d3f592c10fab2f1  3.25       N/A         C++17    7          19
+# v1.15.1  baeece44ba075009c6bfe95891a8c1b3d4571cb3  3.25       N/A         C++17    7          19
+# v1.16.0  e7a0495a874251e9747b2ce0683e0580282c54df  3.26       N/A         C++17    7          19
+# v1.16.1  2a1fd2586ff9ea7b2af94a7d4b1b3c124f5f3cda  3.26       N/A         C++17    7          19
+# v1.16.2  0c5b95fc86750526d09ee9e669a98506116c6bde  3.26       N/A         C++17    7          19
+# v1.16.3  2ac381c55397dffff327cc6efecf6f95a70f90a1  3.26       N/A         C++17    7          19
+# v1.17.0  5f0b62cde54f59bdeac7978c9f9c12d0a4bc56db  3.26       N/A         C++20    7          20
+# v1.17.1  8f5c79cb63f09ef1302e85081093a3fe4da1bc7d  3.26       N/A         C++20    7          20
+# v1.17.3  56b660f36940a919295e6f1e18ad3a9a93a10bf7  3.26       N/A         C++20    7          20
+# v1.18.0  45737400a2f3015c11f005ed7603611eaed306a6  3.26       N/A         C++20    7          21
+# v1.18.1  387127404e6c1d84b3468c387d864877ed1c67fe  3.26       N/A         C++20    7          21
+# v1.18.2  9691af1a2a17b12af04652f4d8d2a18ce9507025  3.26       N/A         C++20    7          21
+# v1.19.0  26250ae74d2c9a3c6860625ba4a147ddfb936907  3.26       N/A         C++20    7          21
+# v1.19.2  ffceed9d44f2f3efb9dd69fa75fea51163c91d91  3.26       N/A         C++20    7          21
+# v1.20.0  c4fb724e810bb496165b9015c77f402727392933  3.26       N/A         C++20    7          21
+# v1.20.1  5c1b7ccbff7e5141c1da7a9d963d660e5741c319  3.26       N/A         C++20    7          21
+# v1.20.2  8608bf02f21774be0388d2aa3a9f886d009d0b4c  3.26       N/A         C++20    7          21
+# v1.21.0  e0b66cad282043d4377cea5269083f17771b6dfc  3.28       3.10        C++20    7          22
+# v1.21.1  8f7cce3a49fdbdac96e0868b75b7d0159db7ac7f  3.28       3.10        C++20    7          22
+# v1.22.0  f217402897f40ebba457e2421bc0a4702771968e  3.28       3.10        C++20    7          22
+# v1.22.1  89746dc19a0a1ae59ebf4b16df9acab8f99f3925  3.28       3.10        C++20    7          22
+# v1.22.2  5630b081cd25e4eccc7516a652ff956e51676794  3.28       3.10        C++20    7          22
+# v1.23.0  be835efc56aca19b8e810538ec93c8e150e0fc61  3.28       3.10        C++20    7          23
+# v1.23.1  d9b2048791efb5804fe3d53a04b4971256addebf  3.28       3.10        C++20    7          23
+# v1.23.2  a83fc4d58cb48eb68890dd689f94f28288cf2278  3.28       3.10        C++20    7          23
+# v1.24.1  470ae16099a74fe05e31f2530489332c0525edb5  3.28       3.10        C++20    7          25
+# v1.24.2  058787ceead760166e3c50a0a4cba8a833a6f53f  3.28       3.10        C++20    7          25
+# v1.24.3  3a728b75062256951b6e19ce718907cf1a1d4cf0  3.28       3.10        C++20    7          25
+# v1.24.4  2d924974ef147392ced8409d36bd6d2e7fcc8a74  3.28       3.11        C++20    7          25
+# v1.25.0  7a71bc575b189cdedea7fa2c0f87389f870bd10e  3.28       3.11        C++20    7          26
+# v1.25.1  8a77e459420f58fb946fd9067285cfa719f10bdd  3.28       3.11        C++20    7          26
