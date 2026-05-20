@@ -268,6 +268,30 @@ enum class NumaMemPolicy {
 };
 
 /**
+ * @brief CPU placement policy for process/thread affinity setup.
+ *
+ * Controls how logical CPUs are selected when the runtime applies process placement.
+ * This is mainly relevant on multi-socket / multi-NUMA systems.
+ */
+enum class CpuPlacementPolicy : std::uint8_t {
+    /**
+     * @brief Prefer compact placement on one socket / NUMA node when possible.
+     *
+     * This is the default latency-oriented policy. It improves locality and reduces
+     * cross-node memory traffic.
+     */
+    LatencyCompact = 0,
+
+    /**
+     * @brief Spread selected CPUs across sockets / NUMA nodes when possible.
+     *
+     * This is a throughput-oriented policy. It may improve aggregate CPU and memory
+     * bandwidth, but can reduce locality and increase cross-node traffic.
+     */
+    ThroughputSpread = 1,
+};
+
+/**
  * @brief Runtime policy controlling threading, binding, and global runtime behavior.
  *
  * This structure configures execution characteristics, typically affecting ONNX Runtime and
@@ -289,6 +313,14 @@ struct RuntimePolicy {
      * Relevant when tiling is enabled and the library uses OpenMP to process tiles concurrently.
      */
     int tile_omp_threads = 1;
+
+    /**
+     * @brief CPU affinity placement strategy.
+     *
+     * Controls how CPUs are selected when process placement is applied.
+     * The default keeps the previous behavior: compact, locality-first placement.
+     */
+    CpuPlacementPolicy cpu_placement_policy = CpuPlacementPolicy::LatencyCompact;
 
     /**
      * @brief Enables "soft" memory binding policies when applicable.

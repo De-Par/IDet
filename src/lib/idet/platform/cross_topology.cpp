@@ -48,6 +48,7 @@ namespace fs = std::filesystem;
 
     #include <dirent.h>
     #include <numaif.h> // move_pages
+    #include <random>
     #include <sched.h>
     #include <unistd.h>
 
@@ -598,6 +599,20 @@ static std::vector<int> nodes_for_cpus(const std::vector<int>& cpus) {
     return nodes;
 }
 
+static unsigned placement_random_seed() {
+    const char* env = std::getenv("IDET_CPU_PLACEMENT_SEED");
+    if (env && env[0] != '\0') {
+        try {
+            return static_cast<unsigned>(std::stoul(env));
+        } catch (...) {
+            // Fall back to non-deterministic seed
+        }
+    }
+
+    std::random_device rd;
+    return rd();
+}
+
 // -------- libnuma policy (optional) --------
 
     #if HAS_LIBNUMA
@@ -968,28 +983,112 @@ idet::Status apply_process_placement_policy(const idet::RuntimePolicy& runtime_p
     std::vector<int> chosen_cpus;
     chosen_cpus.reserve(desired_threads);
 
-    // 1) Single-socket placement if any socket can host all desired threads.
-    for (const auto& sc : cands) {
-        if (sc.avail_ordered.size() >= desired_threads) {
-            chosen_cpus.assign(sc.avail_ordered.begin(),
-                               sc.avail_ordered.begin() + static_cast<std::ptrdiff_t>(desired_threads));
-            break;
+    auto choose_single_socket_compact = [&]() -> bool {
+        chosen_cpus.clear();
+        // 1) Single-socket placement if any socket can host all desired threads.
+        for (const auto& sc : cands) {
+            if (sc.avail_ordered.size() >= desired_threads) {
+                chosen_cpus.assign(sc.avail_ordered.begin(),
+                                   sc.avail_ordered.begin() + static_cast<std::ptrdiff_t>(desired_threads));
+                return true;
+            }
         }
-    }
-
-    // 2) Compact spill across sockets: fill candidates in sorted preference order until enough CPUs are selected.
-    if (chosen_cpus.empty()) {
+        // 2) Compact spill across sockets.
         for (const auto& sc : cands) {
             for (int c : sc.avail_ordered) {
-                if (chosen_cpus.size() == desired_threads) break;
+                if (chosen_cpus.size() == desired_threads) return true;
                 chosen_cpus.push_back(c);
             }
-            if (chosen_cpus.size() == desired_threads) break;
         }
-        if (chosen_cpus.size() != desired_threads) {
-            return idet::Status::Internal(
-                "apply_process_placement_policy: could not gather enough CPUs; inconsistent topology/cpuset?");
+        return chosen_cpus.size() == desired_threads;
+    };
+
+    auto choose_random_across_numa_nodes = [&]() -> bool {
+        chosen_cpus.clear();
+        struct NodeCand {
+            int node_id = -1;
+            std::vector<int> cpus;
+        };
+        std::vector<NodeCand> nodes;
+
+        const auto node_to_cpus = linux_numa_node_to_cpus();
+        const std::set<int> allowed_cpu_set(global_avail.begin(), global_avail.end());
+
+        for (const auto& [node_id, node_cpus] : node_to_cpus) {
+            NodeCand nc;
+            nc.node_id = node_id;
+
+            for (int cpu : node_cpus) {
+                if (allowed_cpu_set.count(cpu)) {
+                    nc.cpus.push_back(cpu);
+                }
+            }
+
+            std::sort(nc.cpus.begin(), nc.cpus.end());
+            nc.cpus.erase(std::unique(nc.cpus.begin(), nc.cpus.end()), nc.cpus.end());
+
+            if (!nc.cpus.empty()) {
+                nodes.push_back(std::move(nc));
+            }
         }
+
+        // Fallback: if NUMA sysfs is unavailable, randomize all available CPUs.
+        if (nodes.empty()) {
+            std::vector<int> cpus = global_avail;
+
+            std::mt19937 rng(placement_random_seed());
+            std::shuffle(cpus.begin(), cpus.end(), rng);
+
+            chosen_cpus.assign(cpus.begin(), cpus.begin() + static_cast<std::ptrdiff_t>(desired_threads));
+
+            return chosen_cpus.size() == desired_threads;
+        }
+
+        std::mt19937 rng(placement_random_seed());
+
+        // Randomize CPU order inside every NUMA node.
+        for (auto& node : nodes) {
+            std::shuffle(node.cpus.begin(), node.cpus.end(), rng);
+        }
+
+        // Randomize NUMA node order too.
+        std::shuffle(nodes.begin(), nodes.end(), rng);
+
+        std::size_t max_len = 0;
+        for (const auto& node : nodes) {
+            max_len = std::max(max_len, node.cpus.size());
+        }
+
+        // Round-robin across NUMA nodes:
+        // nodeA_cpu0, nodeB_cpu0, nodeA_cpu1, nodeB_cpu1, ...
+        for (std::size_t i = 0; i < max_len; ++i) {
+            for (const auto& node : nodes) {
+                if (i >= node.cpus.size()) continue;
+
+                chosen_cpus.push_back(node.cpus[i]);
+
+                if (chosen_cpus.size() == desired_threads) {
+                    return true;
+                }
+            }
+        }
+        return chosen_cpus.size() == desired_threads;
+    };
+
+    bool placement_ok = false;
+
+    switch (runtime_policy.cpu_placement_policy) {
+    case idet::CpuPlacementPolicy::LatencyCompact:
+        placement_ok = choose_single_socket_compact();
+        break;
+    case idet::CpuPlacementPolicy::ThroughputSpread:
+        placement_ok = choose_random_across_numa_nodes();
+        break;
+    }
+
+    if (!placement_ok) {
+        return idet::Status::Internal(
+            "apply_process_placement_policy: could not gather enough CPUs; inconsistent topology/cpuset?");
     }
 
     // 3) Apply CPU affinity to ALL current threads in the process.

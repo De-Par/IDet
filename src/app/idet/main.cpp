@@ -48,6 +48,10 @@ int main(int argc, char** argv) {
         idet::Image img = std::move(img_res.value());
         const double img_load_ms = timer.toc_ms();
 
+        if (det_config.verbose) {
+            std::cout << "[app_info] load image time, ms : " << img_load_ms << "\n";
+        }
+
         // Pre-warmup (catching early errors)
         {
             auto warm_res = detector.detect(img);
@@ -68,11 +72,11 @@ int main(int argc, char** argv) {
             std::size_t bench_it = static_cast<std::size_t>(app_config.bench_iters);
 
             auto det_func = [&]() {
-                auto det_res = detector.detect(img);
-                if (!det_res.ok()) {
-                    throw std::runtime_error("[ERROR] Failed to detect: " + det_res.status().message);
+                auto bench_res = detector.detect(img);
+                if (!bench_res.ok()) {
+                    throw std::runtime_error("[ERROR] Failed to detect: " + bench_res.status().message);
                 }
-                return det_res.value().size();
+                return bench_res.value().size();
             };
 
             std::vector<double> samples;
@@ -84,21 +88,12 @@ int main(int argc, char** argv) {
         }
 
         // Combat launch for results
-        auto r = detector.detect(img);
-        if (!r.ok()) {
-            std::cerr << "[ERROR] Failed to detect: " << r.status().message << "\n";
+        auto combat_res = detector.detect(img);
+        if (!combat_res.ok()) {
+            std::cerr << "[ERROR] Failed to detect: " << combat_res.status().message << "\n";
             return 1;
         }
-        std::vector<idet::Quad> quads = std::move(r.value());
-
-        // Show useful app info
-        if (det_config.verbose) {
-            std::cout << "[app_info] load image time, ms : " << img_load_ms << "\n";
-            std::cout << "[app_info] num detection quads : " << quads.size() << "\n";
-            std::cout << "\n";
-        } else {
-            std::cout << "dets_n: " << quads.size() << "\n";
-        }
+        std::vector<idet::Quad> quads = std::move(combat_res.value());
 
         // Dump quads points
         if (app_config.is_dump) io::dump_detections(quads);

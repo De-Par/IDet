@@ -163,6 +163,33 @@ inline std::string engine_to_string(idet::EngineKind e) {
     }
 }
 
+inline std::string cpu_placement_policy_to_string(idet::CpuPlacementPolicy policy) {
+    switch (policy) {
+    case idet::CpuPlacementPolicy::LatencyCompact:
+        return "latency";
+    case idet::CpuPlacementPolicy::ThroughputSpread:
+        return "throughput";
+    default:
+        return "unknown";
+    }
+}
+
+inline bool parse_cpu_placement_policy(std::string_view sv, idet::CpuPlacementPolicy& policy) {
+    const std::string s = lower_copy(trim_view(sv));
+
+    if (s == "latency") {
+        policy = idet::CpuPlacementPolicy::LatencyCompact;
+        return true;
+    }
+
+    if (s == "throughput") {
+        policy = idet::CpuPlacementPolicy::ThroughputSpread;
+        return true;
+    }
+
+    return false;
+}
+
 inline std::string grid_to_string(const idet::GridSpec& g, bool treat_zeros_as_auto = false) {
     if (treat_zeros_as_auto && (g.rows == 0 || g.cols == 0)) return "auto";
     std::ostringstream oss;
@@ -202,6 +229,7 @@ static void print_usage(std::ostream& os, const char* app) {
        << "  --tile_omp           N       OpenMP threads for tiling. Default: 1\n"
        << "  --runtime_policy    0|1      Setup runtime policy for session (mem/cpus binding + opencv "
           "suppression). Default: 1\n"
+       << "  --cpu_placement     STR      CPU placement policy (latency | throughput). Default: latency\n"
        << "  --soft_mem_bind     0|1      Apply best-effort memory locality (when supported). Default: 1\n"
        << "  --suppress_opencv   0|1      Globally limit the OpenCV number of threads to single. Default: 1\n\n"
        << "Benchmark:\n"
@@ -290,6 +318,7 @@ void print_config(std::ostream& os, const AppConfig& ac, const idet::DetectorCon
 
     p.kv_bool("runtime_policy", ac.setup_runtime_policy, 4);
     if (ac.setup_runtime_policy) {
+        p.kv(" - cpu_placement", cpu_placement_policy_to_string(dc.runtime.cpu_placement_policy), 4, p.a.yellow());
         p.kv_bool(" - soft_mem_bind", dc.runtime.soft_mem_bind, 4);
         p.kv_bool(" - suppress_opencv", dc.runtime.suppress_opencv, 4);
     }
@@ -415,6 +444,13 @@ bool parse_arguments(int argc, char** argv, AppConfig& ac, idet::DetectorConfig&
             if (!next(v)) return missing_value("--tile_omp");
             if (!parse_int(v, dc.runtime.tile_omp_threads) || dc.runtime.tile_omp_threads <= 0)
                 return invalid_value("--tile_omp", v, "expected positive integer");
+
+        } else if (a == "--cpu_placement") {
+            std::string v;
+            if (!next(v)) return missing_value("--cpu_placement");
+            if (!parse_cpu_placement_policy(v, dc.runtime.cpu_placement_policy)) {
+                return invalid_value("--cpu_placement", v, "expected latency|throughput");
+            }
 
         } else if (a == "--nms_iou") {
             std::string v;

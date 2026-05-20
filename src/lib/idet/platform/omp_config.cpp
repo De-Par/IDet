@@ -22,11 +22,12 @@
 #include <cstdlib>
 #include <iostream>
 #include <string>
-#include <thread>
 
 #if defined(__linux__)
     #include <sched.h>
     #include <unistd.h>
+#else
+    #include <thread>
 #endif
 
 #if defined(_OPENMP)
@@ -104,7 +105,7 @@ static inline void dump_env_kv(const char* key, const char* label = nullptr) {
  *
  * @details
  * This helper prints:
- * - the value of @_OPENMP (when available),
+ * - the value of \c _OPENMP (when available),
  * - best-effort identification of the shared library providing OpenMP symbols,
  * - common OpenMP environment variables,
  * - selected OpenMP runtime query values.

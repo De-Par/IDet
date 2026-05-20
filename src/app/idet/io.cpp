@@ -61,6 +61,7 @@ static cv::Mat to_cv_mat_bgr_copy(const idet::Image& image) {
 
 void dump_detections(const idet::VecQuad& quads) {
     int count = 0;
+    std::cout << "dets_n: " << quads.size() << "\n";
     std::cout << "Quads:\n";
     for (const auto& d : quads) {
         std::cout << "    " << ++count << " -> " << d[0].x << "," << d[0].y << " " << d[1].x << "," << d[1].y << " "

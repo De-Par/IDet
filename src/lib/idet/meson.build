@@ -70,8 +70,8 @@ if embed_models
         idet_build_defs += ['-DIDET_HAVE_SCRFD_EMBED']
     endif
 
-    # Cloth detection model (YOLO family, Kesimeg clothing checkpoint)
-    cloth_model_path = join_paths(models_root, 'yolo', 'yolov8n-kesimeg.onnx')
+    # Cloth detection model
+    cloth_model_path = join_paths(models_root, 'yolo', 'yolo26n', 'df2-and-fp-7c', 'yolo26n_df2-and-fp-7c_fp32_dynamic.onnx')
     if not fs.exists(cloth_model_path)
         warning('YOLO model (cloth) not found at ' + cloth_model_path)
     else

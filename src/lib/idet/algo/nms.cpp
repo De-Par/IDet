@@ -24,7 +24,6 @@
 #include <cstring>
 #include <limits>
 #include <numeric>
-#include <utility>
 #include <vector>
 
 namespace idet::algo {

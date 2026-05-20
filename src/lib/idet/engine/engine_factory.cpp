@@ -31,7 +31,6 @@
 
 #include <algorithm>
 #include <array>
-#include <cstddef>
 #include <exception>
 #include <memory>
 #include <new>

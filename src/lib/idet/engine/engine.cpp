@@ -22,7 +22,6 @@
 #include "internal/embed_model.h"
 #include "platform/cross_topology.h"
 
-#include <atomic>
 #include <cstdint>
 #include <exception>
 #include <iostream>
