@@ -14,6 +14,14 @@ log()  { printf '%s\n' "$*"; }
 warn() { printf '%s\n' "[WARN] $*" >&2; }
 die()  { printf '%s\n' "[ERROR] $*" >&2; exit 1; }
 
+bool_str() {
+    if [[ "$1" == "1" ]]; then
+        printf 'true'
+    else
+        printf 'false'
+    fi
+}
+
 need_cmd() { command -v -- "$1" >/dev/null 2>&1 || die "Command '$1' not found in PATH"; }
 
 usage() {
@@ -24,7 +32,7 @@ Usage:
     scripts/include_cleaner.sh [--fix] [--misinc] [--] [paths...]
 
 Options:
-    --fix         apply fixes in-place
+    --fix        apply fixes in-place
     --misinc     enable MissingIncludes mode 
     -h,--help    show this help
 
@@ -91,6 +99,43 @@ ensure_compdb() {
 
 ensure_compdb "${BUILD_DIR}"
 
+# ------------------------- collect source files -------------------------
+
+collect_tidy_files() {
+    local target
+
+    for target in "${TARGET_PATHS[@]}"; do
+        if [[ -d "${target}" ]]; then
+            find "${target}" -type f \( \
+                -name "*.c" -o \
+                -name "*.cc" -o \
+                -name "*.cpp" -o \
+                -name "*.cxx" -o \
+                -name "*.c++" -o \
+                -name "*.m" -o \
+                -name "*.mm" \
+            \) -print0
+        elif [[ -f "${target}" ]]; then
+            case "${target}" in
+                *.c|*.cc|*.cpp|*.cxx|*.c++|*.m|*.mm)
+                    printf '%s\0' "${target}"
+                    ;;
+                *)
+                    warn "Skipping non-source file: ${target}"
+                    ;;
+            esac
+        else
+            warn "Target path does not exist: ${target}"
+        fi
+    done
+}
+
+mapfile -d '' -t TIDY_FILES < <(collect_tidy_files)
+
+if [[ ${#TIDY_FILES[@]} -eq 0 ]]; then
+    die "No source files matched target paths: ${TARGET_PATHS[*]}"
+fi
+
 # ------------------------- clang-tidy arguments -------------------------
 
 missing_val="false"
@@ -105,17 +150,23 @@ if [[ -n "${CLANG_INCLUDE_DIR:-}" ]]; then
     EXTRA+=("-extra-arg=-isystem${CLANG_INCLUDE_DIR}")
 fi
 
+fix_enabled="$(bool_str "${DO_FIX}")"
+missing_includes_enabled="$(bool_str "${DO_MISSING}")"
+
 log "[INFO] include-cleaner via clang-tidy"
 log "----------------------------------------------"
-log "[INFO] Build dir   : ${BUILD_DIR}"
-log "[INFO] clang-tidy  : ${CLANG_TIDY}"
-log "[INFO] run-tidy    : ${RUN_CLANG_TIDY}"
-log "[INFO] Fix         : ${DO_FIX}"
-log "[INFO] MissingInc  : ${DO_MISSING}"
-log "[INFO] Paths       : ${TARGET_PATHS[*]}"
+log "[INFO] Build dir         : ${BUILD_DIR}"
+log "[INFO] clang-tidy        : ${CLANG_TIDY}"
+log "[INFO] run-clang-tidy    : ${RUN_CLANG_TIDY}"
+log "[INFO] Fix enabled       : ${fix_enabled}"
+log "[INFO] Missing includes  : ${missing_includes_enabled}"
+log "[INFO] Matched TUs       : ${#TIDY_FILES[@]}"
+log "[INFO] Target paths      : ${TARGET_PATHS[*]}"
+
 if [[ -n "${CLANG_INCLUDE_DIR:-}" ]]; then
-    log "[INFO] -isystem    : ${CLANG_INCLUDE_DIR}"
+    log "[INFO] Extra include dir : ${CLANG_INCLUDE_DIR}"
 fi
+
 log "----------------------------------------------"
 
 "${RUN_CLANG_TIDY}" \
@@ -123,8 +174,8 @@ log "----------------------------------------------"
     -clang-tidy-binary "${CLANG_TIDY}" \
     -checks='-*,misc-include-cleaner' \
     -header-filter='^(.*/)?(src|include)/' \
-    "${EXTRA[@]-}" \
+    "${EXTRA[@]}" \
     "${ARGS[@]}" \
-    "${TARGET_PATHS[@]}"
+    "${TIDY_FILES[@]}"
 
 log "✅ Done"

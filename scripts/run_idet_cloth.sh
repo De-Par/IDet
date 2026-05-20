@@ -67,7 +67,7 @@ done
 require_tc_active
 
 APP="${BUILD_DIR}/${TC_APP_REL}"
-MODEL="${MODEL:-assets/models/yolo/yolov8n-kesimeg.onnx}"
+MODEL="${MODEL:-assets/models/yolo/yolo26n/df2-and-fp-7c/yolo26n_df2-and-fp-7c_int8_qop_u8u8_dynamic.onnx}"
 IMG="${IMG:-assets/images/cloth/medium.png}"
 
 path_exists "${APP}"
@@ -86,13 +86,11 @@ if ((${#APP_EXTRA_ARGS[@]} > 0)); then
 fi
 log "----------------------------------------------"
 
-# YOLO uses confidence threshold (box_thresh) ~0.25 and class-NMS IoU ~0.5 by convention.
-# Fast-AABB IoU is enabled because YOLO outputs are axis-aligned rectangles.
 common_args=(
     --mode cloth
     --model "${MODEL}"
     --image "${IMG}"
-    --box_thresh 0.25
+    --box_thresh 0.01
     --nms_iou 0.5
     --use_fast_iou 1
     --min_roi_size_w 8
