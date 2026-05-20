@@ -55,6 +55,7 @@ These flags belong to the **demo CLI application** (`idet_app`) that links again
 | `--threads_inter` | N | `1` | All | ORT inter-op threads (between graph nodes) |
 | `--tile_omp` | N | `1` | All | OpenMP threads for tiling |
 | `--runtime_policy` | 0\|1 | `1` | All | Setup runtime policy (CPU/mem binding + OpenCV suppression) |
+| `--cpu_placement` | STR | `latency` | All | CPU placement policy for process/thread affinity setup: `latency` / `throughput` |
 | `--soft_mem_bind` | 0\|1 | `1` | All | Best-effort memory locality (when supported) |
 | `--suppress_opencv` | 0\|1 | `1` | All | Limit OpenCV global thread count to 1 |
 

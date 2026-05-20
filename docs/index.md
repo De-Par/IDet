@@ -13,3 +13,4 @@
 | [Performance Guide](performance.md) | Runtime policy, benchmark output, tuning, IOBinding, tiling and NMS |
 | [Troubleshooting & FAQ](troubleshooting.md) | Common failures, ORT ABI mismatch, FAQ |
 | [Doxygen API Reference](doxygen.md) | Generate and browse local API HTML documentation |
+| [ACL Execution Provider](setup-acl-ep.md) | Use ACL execution provider instead of MLAS |

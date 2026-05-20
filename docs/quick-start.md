@@ -64,19 +64,25 @@ scripts/run_idet_face.sh tile
 
 ## Cloth Detection
 
-The bundled Fashionpedia YOLO model is fixed-shape and expects `640x640` input tensors. The wrapper keeps that shape for both single-shot and tiled runs.
-
 Basic single-shot detection:
 
 ```bash
 scripts/run_idet_cloth.sh
 ```
 
+<p align="center">
+  <img src="assets/single_cloth_mode.png" alt="single_face_mode" width="70%">
+</p>
+
 Detection with tiling:
 
 ```bash
 scripts/run_idet_cloth.sh tile
 ```
+
+<p align="center">
+  <img src="assets/tiled_cloth_mode.png" alt="tiled_face_mode" width="70%">
+</p>
 
 
 ## Direct Smoke Commands
@@ -102,7 +108,7 @@ build_gcc_perf/src/app/idet/idet_app \
 
 build_gcc_perf/src/app/idet/idet_app \
     --mode cloth \
-    --model assets/models/yolo/yolov8n-kesimeg.onnx \
+    --model assets/models/yolo/yolo26n/df2-and-fp-7c/yolo26n_df2-and-fp-7c_fp32_dynamic.onnx \
     --image assets/images/cloth/small.png \
     --is_draw 0 --is_dump 0 \
     --bench_iters 1 --warmup_iters 1 \

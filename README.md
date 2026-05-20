@@ -84,6 +84,7 @@ Detailed documentation is organized into focused, self-contained pages under `do
 | [Performance Guide](docs/performance.md) | Runtime policy, benchmark output, tuning, IOBinding, tiling and NMS |
 | [Troubleshooting & FAQ](docs/troubleshooting.md) | Common failures, ORT ABI mismatch, FAQ |
 | [Doxygen API Reference](docs/doxygen.md) | Generate and browse local API HTML documentation |
+| [ACL Execution Provider](docs/setup-acl-ep.md) | Use ACL execution provider instead of MLAS |
 
 
 ## Quick Start
